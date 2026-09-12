@@ -4,3 +4,5 @@
 // Drizzle table definitions. Every table this project owns is prefixed `agc_`.
 
 export * from "./organizations.js";
+export * from "./agents.js";
+export * from "./agent_config_revisions.js";
