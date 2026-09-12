@@ -23,3 +23,6 @@ run-transcripts/
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# private, never published
+*.local.md

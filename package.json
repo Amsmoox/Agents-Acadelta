@@ -1,0 +1,44 @@
+{
+  "name": "agentco",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=9.15.0"
+  },
+  "scripts": {
+    "dev": "pnpm run --parallel --filter \"./apps/*\" dev",
+    "dev:api": "pnpm --filter @agentco/api dev",
+    "dev:runner": "pnpm --filter @agentco/runner dev",
+    "dev:web": "pnpm --filter @agentco/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "pnpm --filter @agentco/db generate",
+    "db:migrate": "pnpm --filter @agentco/db migrate",
+    "db:studio": "pnpm --filter @agentco/db studio",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "infra:reset": "docker compose down -v && docker compose up -d",
+    "license:check": "node scripts/license-header.mjs --check",
+    "license:fix": "node scripts/license-header.mjs --write",
+    "check": "pnpm license:check && pnpm typecheck && pnpm lint && pnpm test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.13.4",
+    "eslint": "^10.10.0",
+    "globals": "^17.12.0",
+    "prettier": "^3.9.6",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.0",
+    "vitest": "^5.0.0"
+  },
+  "license": "MIT",
+  "author": "Mharrech Ayoub <mharrech.ayoub@gmail.com>"
+}

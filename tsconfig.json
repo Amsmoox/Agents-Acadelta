@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.base.json",
+  "include": [],
+  "comment": "Root is a stub. Each workspace owns its own tsconfig; `pnpm typecheck` runs them all."
+}
