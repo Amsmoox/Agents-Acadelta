@@ -24,7 +24,7 @@ function OrganizationsPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const query = useOrganizations();
 
-  const all = query.data?.data ?? [];
+  const all = query.data ?? [];
   const counts = {
     all: all.length,
     active: all.filter((o) => o.status === "active").length,

@@ -13,7 +13,7 @@ import { Badge, Tag } from "@/components/ui/status";
 import { ErrorState, Skeleton, Spinner } from "@/components/ui/feedback";
 import { MenuContent, MenuItem, MenuRoot, MenuTrigger } from "@/components/ui/menu";
 import { fullDate, timeAgo } from "@/lib/format";
-import { firstIssue } from "@/lib/api";
+import { ApiError, firstIssue } from "@/lib/api";
 import {
   useOrganization,
   useSetArchived,
@@ -41,18 +41,32 @@ function OrganizationDetailPage() {
   }
 
   if (query.isError) {
+    // A missing organization and an unreachable API are different problems and
+    // need different instructions; saying "not found" for both sends the
+    // operator looking for a mistake they did not make.
+    const missing = query.error instanceof ApiError && query.error.status === 404;
     return (
       <Page>
         <ErrorState
-          title="Organization not found"
-          description="It may have been renamed, or the link is wrong."
+          title={missing ? "Organization not found" : "Can't load this organization"}
+          description={
+            missing
+              ? "It may have been archived by someone else, or the link is wrong."
+              : "The API didn't answer. Check that it's running, then try again."
+          }
           action={
-            <Link
-              to="/organizations"
-              className={buttonVariants({ variant: "secondary", size: "sm" })}
-            >
-              Back to organizations
-            </Link>
+            missing ? (
+              <Link
+                to="/organizations"
+                className={buttonVariants({ variant: "secondary", size: "sm" })}
+              >
+                Back to organizations
+              </Link>
+            ) : (
+              <Button variant="secondary" size="sm" onClick={() => query.refetch()}>
+                Try again
+              </Button>
+            )
           }
         />
       </Page>
@@ -87,16 +101,35 @@ function OrganizationDetailPage() {
         actions={<RowActions ref_={ref} archived={archived} />}
       />
 
-      {archived ? (
-        <div className="mb-4 flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-line bg-sunken px-3 py-2.5">
-          <p className="text-xs text-muted">
-            This organization is archived. Restore it to make changes.
-          </p>
-        </div>
-      ) : null}
+      {archived ? <ArchivedBanner ref_={ref} /> : null}
 
       <DetailsForm ref_={ref} name={organization.name} mission={organization.mission} disabled={archived} />
     </Page>
+  );
+}
+
+function ArchivedBanner({ ref_ }: { ref_: string }) {
+  const setArchived = useSetArchived(ref_);
+  return (
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-md)] border border-line bg-sunken px-3 py-2.5">
+      <p className="text-xs text-muted">This organization is archived. Restore it to make changes.</p>
+      <Button
+        variant="secondary"
+        size="sm"
+        disabled={setArchived.isPending}
+        onClick={async () => {
+          try {
+            await setArchived.mutateAsync(false);
+            toast.success("Restored");
+          } catch (failure) {
+            toast.error(firstIssue(failure) ?? "Could not restore the organization.");
+          }
+        }}
+      >
+        <RotateCcw />
+        Restore
+      </Button>
+    </div>
   );
 }
 
@@ -181,6 +214,7 @@ function DetailsForm({
               {...props}
               value={name}
               disabled={disabled}
+              maxLength={120}
               onChange={(event) => setName(event.target.value)}
               className="max-w-120"
             />
@@ -193,6 +227,7 @@ function DetailsForm({
               {...props}
               value={mission}
               disabled={disabled}
+              maxLength={2000}
               rows={3}
               onChange={(event) => setMission(event.target.value)}
               placeholder="Not set."
@@ -202,7 +237,15 @@ function DetailsForm({
         </Field>
 
         <Field label="URL" hint="The slug can't change once the organization exists.">
-          {(props) => <Input {...props} value={`/organizations/${ref_}`} readOnly disabled className="machine max-w-120" />}
+          {(props) => (
+            <Input
+              {...props}
+              value={`/organizations/${ref_}`}
+              readOnly
+              onFocus={(event) => event.target.select()}
+              className="machine max-w-120 text-muted"
+            />
+          )}
         </Field>
       </div>
 

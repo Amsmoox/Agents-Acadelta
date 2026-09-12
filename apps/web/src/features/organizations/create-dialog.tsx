@@ -92,6 +92,7 @@ export function CreateOrganizationDialog() {
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                   placeholder="Acadelta"
+                  maxLength={120}
                   autoFocus
                 />
               )}
@@ -110,6 +111,7 @@ export function CreateOrganizationDialog() {
                   value={mission}
                   onChange={(event) => setMission(event.target.value)}
                   placeholder="Get the school platform to 10 paying schools."
+                  maxLength={2000}
                   rows={3}
                 />
               )}

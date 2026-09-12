@@ -17,13 +17,36 @@ export const organizationKeys = {
   detail: (ref: string) => ["organizations", "detail", ref] as const,
 };
 
+const PAGE_SIZE = 100;
+/** A console list is the wrong tool past this many rows; stop rather than loop. */
+const MAX_PAGES = 20;
+
+/**
+ * Walks every page rather than asking for one and discarding the cursor, which
+ * silently capped the list — and the filter counts drawn from it — at 100.
+ */
+export async function fetchAllOrganizations(status?: string): Promise<Organization[]> {
+  const all: Organization[] = [];
+  let cursor: string | null = null;
+
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const query = new URLSearchParams({ limit: String(PAGE_SIZE) });
+    if (status) query.set("status", status);
+    if (cursor) query.set("cursor", cursor);
+
+    const result: OrganizationList = await request<OrganizationList>(`/organizations?${query}`);
+    all.push(...result.data);
+    if (!result.nextCursor) break;
+    cursor = result.nextCursor;
+  }
+
+  return all;
+}
+
 export function useOrganizations(status?: "active" | "archived") {
   return useQuery({
     queryKey: organizationKeys.list(status),
-    queryFn: () =>
-      request<OrganizationList>(
-        `/organizations?limit=100${status ? `&status=${status}` : ""}`,
-      ),
+    queryFn: () => fetchAllOrganizations(status),
   });
 }
 

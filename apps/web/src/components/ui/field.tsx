@@ -11,7 +11,11 @@ type FieldProps = {
   error?: string | undefined;
   optional?: boolean;
   className?: string;
-  children: (props: { id: string; "aria-invalid": boolean; "aria-describedby": string }) => ReactNode;
+  children: (props: {
+    id: string;
+    "aria-invalid": boolean;
+    "aria-describedby": string | undefined;
+  }) => ReactNode;
 };
 
 /**
@@ -29,7 +33,11 @@ export function Field({ label, hint, error, optional, className, children }: Fie
         {label}
         {optional ? <span className="text-2xs font-normal text-faint">optional</span> : null}
       </label>
-      {children({ id, "aria-invalid": Boolean(error), "aria-describedby": messageId })}
+      {children({
+        id,
+        "aria-invalid": Boolean(error),
+        "aria-describedby": message ? messageId : undefined,
+      })}
       {message ? (
         <p id={messageId} className={cn("text-2xs", error ? "text-danger" : "text-faint")}>
           {message}
