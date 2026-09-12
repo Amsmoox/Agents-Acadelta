@@ -2,11 +2,17 @@
 // SPDX-FileCopyrightText: 2026 Mharrech Ayoub <mharrech.ayoub@gmail.com>
 
 import { defineConfig } from "drizzle-kit";
+import { fileURLToPath } from "node:url";
 
-const url = process.env.DATABASE_URL;
-if (!url) {
-  throw new Error("DATABASE_URL is not set. Copy .env.example to .env at the repo root.");
+try {
+  process.loadEnvFile(fileURLToPath(new URL("../../.env", import.meta.url)));
+} catch {
+  // No .env present; fall back to whatever is already in the environment.
 }
+
+// `generate` only diffs the schema and needs no server, so a missing URL is not
+// fatal here — `migrate`, `push` and `studio` fail loudly on the placeholder.
+const url = process.env.DATABASE_URL ?? "postgres://unset:unset@localhost:5433/unset";
 
 export default defineConfig({
   dialect: "postgresql",
