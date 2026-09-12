@@ -253,9 +253,23 @@ export function createAgentRepository(db: Database) {
 
       if (query.cursor) {
         const id = decodeCursor(query.cursor);
+
+        // The comparison below is against a subquery, so a cursor pointing at a
+        // row that has since gone makes it NULL and the page comes back empty —
+        // which reads exactly like "you have reached the end" and quietly hides
+        // everything after it. Say what happened instead.
+        const [anchor] = await db
+          .select({ id: agents.id })
+          .from(agents)
+          .where(and(eq(agents.organizationId, organizationId), eq(agents.id, id)))
+          .limit(1);
+        if (!anchor) throw new AppError("PAGE_CURSOR_EXPIRED");
+
         filters.push(
           sql`(${agents.createdAt}, ${agents.id}) < (
-            select ${agents.createdAt}, ${agents.id} from ${agents} where ${agents.id} = ${id}::uuid
+            select ${agents.createdAt}, ${agents.id} from ${agents}
+             where ${agents.id} = ${id}::uuid
+               and ${agents.organizationId} = ${organizationId}::uuid
           )`,
         );
       }

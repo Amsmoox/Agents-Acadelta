@@ -25,6 +25,11 @@ export const ERRORS = {
     message: "Send this request as application/json.",
   },
   BAD_REQUEST: { code: 1007, status: 400, message: "The request could not be read." },
+  PAGE_CURSOR_EXPIRED: {
+    code: 1008,
+    status: 400,
+    message: "That page is no longer available. Start from the beginning.",
+  },
 
   // 2xxx — organizations
   ORGANIZATION_NOT_FOUND: { code: 2001, status: 404, message: "Organization not found." },

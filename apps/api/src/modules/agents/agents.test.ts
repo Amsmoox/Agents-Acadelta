@@ -162,6 +162,53 @@ describe.skipIf(!reachable)("agents API", () => {
     });
   });
 
+  describe("paging", () => {
+    it("says so when a cursor points at a row that has gone", async () => {
+      // The keyset comparison is against a subquery, so a missing anchor made
+      // it NULL and returned an empty page — indistinguishable from reaching
+      // the end, and it hid every remaining row.
+      await create({ name: "One" });
+      await create({ name: "Two" });
+      await create({ name: "Three" });
+
+      const first = (
+        await app.inject({ method: "GET", url: `/organizations/${org}/agents?limit=1` })
+      ).json();
+      expect(first.nextCursor).not.toBeNull();
+
+      // The anchor row leaves the default listing once it is terminated, and a
+      // cursor naming a row outside the result set is the same shape of problem.
+      const gone = Buffer.from("01a09999-0000-7000-8000-000000000000", "utf8").toString("base64url");
+      const res = await app.inject({
+        method: "GET",
+        url: `/organizations/${org}/agents?limit=1&cursor=${encodeURIComponent(gone)}`,
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error.code).toBe("AGC-1008");
+    });
+
+    it("refuses a cursor naming an agent in another organization", async () => {
+      const other = (
+        await app.inject({ method: "POST", url: "/organizations", payload: { name: "Other" } })
+      ).json();
+      const foreign = (
+        await app.inject({
+          method: "POST",
+          url: `/organizations/${other.slug}/agents`,
+          payload: { name: "Foreign", adapterType: "claude_local" },
+        })
+      ).json();
+
+      const cursor = Buffer.from(foreign.id, "utf8").toString("base64url");
+      const res = await app.inject({
+        method: "GET",
+        url: `/organizations/${org}/agents?limit=1&cursor=${encodeURIComponent(cursor)}`,
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error.code).toBe("AGC-1008");
+    });
+  });
+
   describe("status transitions", () => {
     it("pauses and resumes", async () => {
       const agent = (await create({ name: "Worker" })).json();

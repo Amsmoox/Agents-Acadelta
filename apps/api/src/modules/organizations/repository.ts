@@ -161,6 +161,16 @@ export function createOrganizationRepository(db: Database) {
       if (query.status) filters.push(eq(organizations.status, query.status));
       if (query.cursor) {
         const id = decodeCursor(query.cursor);
+
+        // A cursor whose row has gone makes the comparison NULL and returns an
+        // empty page, which is indistinguishable from reaching the end.
+        const [anchor] = await db
+          .select({ id: organizations.id })
+          .from(organizations)
+          .where(eq(organizations.id, id))
+          .limit(1);
+        if (!anchor) throw new AppError("PAGE_CURSOR_EXPIRED");
+
         // Compared against the stored row, at full precision, rather than
         // against a value that has been through a JavaScript Date.
         filters.push(

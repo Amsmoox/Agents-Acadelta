@@ -166,6 +166,18 @@ describe.skipIf(!reachable)("organizations API", () => {
       expect(res.statusCode).toBe(400);
       expect(res.json().error.code).toBe("AGC-1001");
     });
+
+    it("says so when a well-formed cursor points at a row that has gone", async () => {
+      // Empty is the wrong answer here: it is what the end of the list looks
+      // like, so every remaining row disappears without a word.
+      const gone = Buffer.from("01a09999-0000-7000-8000-000000000000", "utf8").toString("base64url");
+      const res = await app.inject({
+        method: "GET",
+        url: `/organizations?cursor=${encodeURIComponent(gone)}`,
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error.code).toBe("AGC-1008");
+    });
   });
 
   describe("update", () => {
