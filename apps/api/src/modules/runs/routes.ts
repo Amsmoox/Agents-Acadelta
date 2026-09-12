@@ -105,10 +105,13 @@ export async function registerRunRoutes(instance: FastifyInstance) {
       const runId = request.params.runId;
       await dispatch.getRun(org, runId);
 
+      // `Last-Event-ID` wins over `?from=`. The browser sets the header by
+      // itself on a reconnect and knows exactly where the reader got to; a
+      // `from` in the URL is whatever the page was first opened with, and
+      // letting it win replayed the whole run into an already-populated view.
       const lastEventId = request.headers["last-event-id"];
-      let cursor =
-        request.query.from ??
-        (typeof lastEventId === "string" ? Number.parseInt(lastEventId, 10) || 0 : 0);
+      const resumeAt = typeof lastEventId === "string" ? Number.parseInt(lastEventId, 10) : NaN;
+      let cursor = Number.isFinite(resumeAt) ? resumeAt : (request.query.from ?? 0);
 
       reply.raw.writeHead(200, {
         "content-type": "text/event-stream",
@@ -137,16 +140,38 @@ export async function registerRunRoutes(instance: FastifyInstance) {
         if (!closed) reply.raw.write(": keep-alive\n\n");
       }, SSE_HEARTBEAT_MS);
 
-      try {
-        while (!closed) {
+      /**
+       * Sends everything after the cursor, however much there is.
+       *
+       * `listEvents` returns at most a page, so one call is not "the rest" — a
+       * chatty agent producing more than a page between polls had the overflow
+       * left behind until the next tick, and if the run ended on that tick, for
+       * good.
+       */
+      const drain = async (): Promise<void> => {
+        for (;;) {
           const events = await dispatch.listEvents(runId, cursor);
+          if (events.length === 0) return;
           for (const event of events) {
             cursor = event.seq;
             send({ id: event.seq, event: event.kind, data: event.payload });
           }
+          if (closed) return;
+        }
+      };
+
+      try {
+        while (!closed) {
+          await drain();
 
           const run = await dispatch.getRun(org, runId);
           if (run.status !== "running" && run.status !== "leased") {
+            // One last pass before saying done. A run writes its final output
+            // and *then* marks itself finished, so anything landing between the
+            // drain above and this read would have been announced as complete
+            // and never sent — the end of a transcript is exactly the part
+            // somebody is reading for.
+            await drain();
             send({ event: "done", data: { status: run.status, exitCode: run.exitCode } });
             break;
           }
