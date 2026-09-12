@@ -16,5 +16,10 @@ export default defineConfig({
     include: ["{apps,packages}/*/src/**/*.{test,spec}.{ts,tsx}"],
     environment: "node",
     passWithNoTests: true,
+    // Integration suites share one database and truncate between tests, so two
+    // files running at once wipe each other's fixtures. Isolating per file
+    // would mean a schema per worker; serialising is cheaper and the suite is
+    // small.
+    fileParallelism: false,
   },
 });

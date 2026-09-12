@@ -88,6 +88,6 @@ export async function migrateTestDatabase(): Promise<void> {
 /** Between tests, not after: a failed test leaves its rows for inspection. */
 export async function truncateAll(): Promise<void> {
   await withPool(TEST_DATABASE_URL, async (pool) => {
-    await pool.query("truncate table agc_organizations restart identity cascade");
+    await pool.query("truncate table agc_organizations, agc_agents, agc_agent_config_revisions restart identity cascade");
   });
 }
