@@ -20,14 +20,24 @@ import {
 } from "@/components/ui/dialog";
 import { ApiError, firstIssue } from "@/lib/api";
 import { useCreateOrganization } from "./queries";
+import { useCurrentOrganization } from "./current-organization";
 
-export function CreateOrganizationDialog() {
-  const [open, setOpen] = useState(false);
+export function CreateOrganizationDialog({
+  open: controlledOpen,
+  onOpenChange,
+}: {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+} = {}) {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = controlledOpen ?? uncontrolledOpen;
   const [name, setName] = useState("");
   const [mission, setMission] = useState("");
   const [error, setError] = useState<string>();
   const create = useCreateOrganization();
   const navigate = useNavigate();
+  // A newly created organization becomes the one you are working in.
+  const { select } = useCurrentOrganization();
 
   // Shown so the person sees the URL they are about to get, before they commit.
   const preview = slugify(name);
@@ -47,8 +57,10 @@ export function CreateOrganizationDialog() {
         ...(mission.trim() ? { mission: mission.trim() } : {}),
       });
       toast.success(`Created ${organization.name}`);
-      setOpen(false);
+      setUncontrolledOpen(false);
+      onOpenChange?.(false);
       reset();
+      select(organization.id);
       await navigate({ to: "/organizations/$ref", params: { ref: organization.slug } });
     } catch (failure) {
       setError(
@@ -63,7 +75,8 @@ export function CreateOrganizationDialog() {
     <DialogRoot
       open={open}
       onOpenChange={(next) => {
-        setOpen(next);
+        setUncontrolledOpen(next);
+        onOpenChange?.(next);
         if (!next) reset();
       }}
     >

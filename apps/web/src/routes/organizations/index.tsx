@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Mharrech Ayoub <mharrech.ayoub@gmail.com>
 
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import type { Organization } from "@agentco/shared";
 import { Page, PageHeader } from "@/components/ui/page";
@@ -15,6 +15,14 @@ import { useOrganizations } from "@/features/organizations/queries";
 import { CreateOrganizationDialog } from "@/features/organizations/create-dialog";
 
 export const Route = createFileRoute("/organizations/")({
+  // `?new=1` opens the create dialog, so "New organization" works from anywhere
+  // in the app — including the switcher, which is not on this page.
+  // Returned only when set, so every other link to this route stays search-free.
+  validateSearch: (search: Record<string, unknown>): { new?: true } => {
+    const wantsCreate =
+      search["new"] === true || search["new"] === "true" || search["new"] === "1";
+    return wantsCreate ? { new: true } : {};
+  },
   component: OrganizationsPage,
 });
 
@@ -23,6 +31,13 @@ type Filter = "all" | "active" | "archived";
 function OrganizationsPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const query = useOrganizations();
+  const { new: openCreate = false } = Route.useSearch();
+  const navigate = useNavigate();
+
+  // Closing the dialog clears the flag, so a refresh does not reopen it.
+  const setCreateOpen = (open: boolean) => {
+    if (!open) void navigate({ to: "/organizations", search: {}, replace: true });
+  };
 
   const all = query.data ?? [];
   const counts = {
@@ -36,7 +51,7 @@ function OrganizationsPage() {
     <Page>
       <PageHeader
         title="Organizations"
-        actions={<CreateOrganizationDialog />}
+        actions={<CreateOrganizationDialog open={openCreate} onOpenChange={setCreateOpen} />}
       />
 
       {counts.all > 0 ? (

@@ -19,6 +19,7 @@ import {
   useSetArchived,
   useUpdateOrganization,
 } from "@/features/organizations/queries";
+import { useCurrentOrganization } from "@/features/organizations/current-organization";
 
 export const Route = createFileRoute("/organizations/$ref")({
   component: OrganizationDetailPage,
@@ -27,6 +28,15 @@ export const Route = createFileRoute("/organizations/$ref")({
 function OrganizationDetailPage() {
   const { ref } = Route.useParams();
   const query = useOrganization(ref);
+  const { select } = useCurrentOrganization();
+
+  // Opening an organization by URL makes it the current one — a shared link
+  // lands the reader in the right place, including an archived organization,
+  // which stays reachable even though the switcher does not offer it.
+  const openedId = query.data?.id;
+  useEffect(() => {
+    if (openedId) select(openedId);
+  }, [openedId, select]);
 
   if (query.isPending) {
     return (
