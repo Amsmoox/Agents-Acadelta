@@ -27,6 +27,8 @@ export type SupervisedResult = {
   inputTokens: number;
   outputTokens: number;
   costCents: number;
+  /** Why the process never ran, when it never ran. */
+  error?: string | undefined;
 };
 
 export type SupervisorOptions = {
@@ -85,35 +87,6 @@ export async function superviseRun(options: SupervisorOptions): Promise<Supervis
   // prompt from, and that file does not exist until the line above.
   const spec = options.buildSpec(systemPromptPath);
 
-  const child = spawn(spec.command, spec.args, {
-    ...(options.cwd ? { cwd: options.cwd } : {}),
-    env: { ...process.env, ...options.env },
-    stdio: ["pipe", "pipe", "pipe"],
-    // Its own process group, so a timeout can stop the whole tree rather than
-    // just the parent and leave orphans behind.
-    detached: true,
-  });
-
-  if (!child.pid) {
-    transcript.end();
-    return {
-      exitCode: null,
-      signal: null,
-      timedOut: false,
-      cancelled: false,
-      inputTokens: 0,
-      outputTokens: 0,
-      costCents: 0,
-    };
-  }
-
-  await options.onStart(child.pid, systemPromptPath, transcriptPath, spec.command);
-
-  if (spec.stdin !== undefined) {
-    child.stdin.write(spec.stdin);
-  }
-  child.stdin.end();
-
   let inputTokens = 0;
   let outputTokens = 0;
   let costCents = 0;
@@ -132,6 +105,58 @@ export async function superviseRun(options: SupervisorOptions): Promise<Supervis
     transcript.write(`${JSON.stringify({ kind, ...payload })}\n`);
     buffer.push({ kind, payload });
   };
+
+  const child = spawn(spec.command, spec.args, {
+    ...(options.cwd ? { cwd: options.cwd } : {}),
+    env: { ...process.env, ...options.env },
+    stdio: ["pipe", "pipe", "pipe"],
+    // Its own process group, so a timeout can stop the whole tree rather than
+    // just the parent and leave orphans behind.
+    detached: true,
+  });
+
+  // Attached on the line after the spawn, and that ordering is load-bearing
+  // twice over.
+  //
+  // A spawn that cannot find its command reports it through an asynchronous
+  // 'error' event, and an unhandled 'error' on a ChildProcess is an uncaught
+  // exception — one mistyped command name used to take the whole runner down
+  // rather than failing the one run that asked for it.
+  //
+  // And `echo` exits in about two milliseconds while recording the pid takes a
+  // database round trip. Attaching these afterwards meant a process that
+  // finished inside that window emitted 'close' with nobody listening, so the
+  // promise never settled: no output captured, the run stuck in `running` until
+  // the lease reaper called it orphaned, and the poison-pill counter then spent
+  // two more runs rediscovering the same thing. Node does not replay an event
+  // that already fired, so there is no version of this an await can sit before.
+  let spawnError: string | null = null;
+  const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
+    child.on("error", (error) => {
+      spawnError = error.message;
+      record("error", { message: error.message });
+      resolve({ code: null, signal: null });
+    });
+    child.on("close", (code, signal) => resolve({ code, signal }));
+  });
+
+  if (!child.pid) {
+    // No pid means the spawn itself failed. Wait for the reason rather than
+    // returning a bare "exited with code unknown", which tells nobody anything.
+    await exited;
+    await flush();
+    await new Promise<void>((resolve) => transcript.end(resolve));
+    return {
+      exitCode: null,
+      signal: null,
+      timedOut: false,
+      cancelled: false,
+      inputTokens: 0,
+      outputTokens: 0,
+      costCents: 0,
+      error: spawnError ?? `Could not start ${spec.command}.`,
+    };
+  }
 
   for (const [stream, kind] of [
     [child.stdout, "log"],
@@ -159,6 +184,18 @@ export async function superviseRun(options: SupervisorOptions): Promise<Supervis
       record(kind, { text: line });
     });
   }
+
+  // A child that has already exited leaves a pipe with no reader, and writing
+  // to one raises EPIPE on the stream itself. Unhandled, that takes the whole
+  // runner down over a process that did nothing wrong by finishing early.
+  child.stdin.on("error", () => undefined);
+
+  await options.onStart(child.pid, systemPromptPath, transcriptPath, spec.command);
+
+  if (spec.stdin !== undefined) {
+    child.stdin.write(spec.stdin);
+  }
+  child.stdin.end();
 
   const flushTimer = setInterval(() => void flush(), FLUSH_INTERVAL_MS);
 
@@ -196,15 +233,7 @@ export async function superviseRun(options: SupervisorOptions): Promise<Supervis
         }, options.timeoutSec * 1000)
       : null;
 
-  const result = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
-    (resolve) => {
-      child.on("error", (error) => {
-        record("error", { message: error.message });
-        resolve({ code: null, signal: null });
-      });
-      child.on("close", (code, signal) => resolve({ code, signal }));
-    },
-  );
+  const result = await exited;
 
   clearInterval(flushTimer);
   clearInterval(heartbeatTimer);
@@ -221,5 +250,6 @@ export async function superviseRun(options: SupervisorOptions): Promise<Supervis
     inputTokens,
     outputTokens,
     costCents,
+    error: spawnError ?? undefined,
   };
 }

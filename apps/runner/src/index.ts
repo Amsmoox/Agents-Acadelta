@@ -126,9 +126,13 @@ async function executeRun(claim: {
       ...(result.timedOut ? { stopReason: "timeout" } : {}),
       ...(status === "failed"
         ? {
-            error: result.timedOut
-              ? "The run was stopped for taking too long."
-              : `The agent exited with code ${result.exitCode ?? "unknown"}.`,
+            // A spawn failure names the real cause; "exited with code unknown"
+            // is what an operator gets when the command simply is not installed.
+            error:
+              result.error ??
+              (result.timedOut
+                ? "The run was stopped for taking too long."
+                : `The agent exited with code ${result.exitCode ?? "unknown"}.`),
           }
         : {}),
       inputTokens: result.inputTokens,
