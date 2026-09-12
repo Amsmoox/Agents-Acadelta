@@ -11,6 +11,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge, Tag } from "@/components/ui/status";
 import { Callout } from "@/components/ui/callout";
 import { Card, DescriptionList, DescriptionRow } from "@/components/ui/card";
+import { CheckboxField } from "@/components/ui/checkbox";
 import { ErrorState, Skeleton, Spinner } from "@/components/ui/feedback";
 import { Segmented } from "@/components/ui/segmented";
 import { List, ListRow } from "@/components/ui/list";
@@ -405,19 +406,69 @@ function Harness({ org, agent }: { org: string; agent: AgentDetail }) {
   );
 }
 
+/**
+ * What this agent is allowed to do on its own.
+ *
+ * These were displayed and not editable, which made them look like facts about
+ * the system rather than decisions somebody makes. They are the ceiling on what
+ * an agent can do without a person, so changing one has to be possible here.
+ */
+const PERMISSIONS = [
+  {
+    key: "canCreateAgents",
+    label: "Hire agents",
+    hint: "Create new agents in this organization.",
+  },
+  {
+    key: "canCreateSkills",
+    label: "Write skills",
+    hint: "Add to and edit the shared skill library.",
+  },
+  {
+    key: "canAssignTasks",
+    label: "Assign work",
+    hint: "Give work to other agents rather than only doing its own.",
+  },
+] as const;
+
+function Permissions({ org, agent }: { org: string; agent: AgentDetail }) {
+  const update = useUpdateAgent(org, agent.slug);
+  const locked = agent.status === "terminated" || agent.status === "pending_approval";
+
+  async function toggle(key: string, next: boolean) {
+    try {
+      await update.mutateAsync({ permissions: { ...agent.permissions, [key]: next } });
+      toast.success("Saved");
+    } catch (failure) {
+      toast.error(firstIssue(failure) ?? "Could not save.");
+    }
+  }
+
+  return (
+    <Card title="Permissions">
+      <div className="flex flex-col gap-3">
+        {PERMISSIONS.map((permission) => (
+          <CheckboxField
+            key={permission.key}
+            checked={agent.permissions[permission.key] === true}
+            disabled={locked || update.isPending}
+            onChange={(event) => void toggle(permission.key, event.target.checked)}
+            label={permission.label}
+            description={permission.hint}
+          />
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 function Governance({ org, agent }: { org: string; agent: AgentDetail }) {
   const revisions = useAgentRevisions(org, agent.slug);
   const rollback = useRollbackRevision(org, agent.slug);
 
   return (
     <div className="flex flex-col gap-4">
-      <Card title="Permissions">
-        <DescriptionList>
-        <DescriptionRow label="Can hire agents" value={agent.permissions["canCreateAgents"] ? "Yes" : "No"} />
-        <DescriptionRow label="Can write skills" value={agent.permissions["canCreateSkills"] ? "Yes" : "No"} />
-        <DescriptionRow label="Can assign work" value={agent.permissions["canAssignTasks"] ? "Yes" : "No"} />
-        </DescriptionList>
-      </Card>
+      <Permissions org={org} agent={agent} />
 
       <div>
         <h2 className="pb-2 text-2xs font-medium text-faint">Configuration history</h2>
