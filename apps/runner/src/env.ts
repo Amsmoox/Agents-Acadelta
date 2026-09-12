@@ -11,6 +11,8 @@ const envSchema = z.object({
   DISPATCH_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(1500),
   RUN_LEASE_SECONDS: z.coerce.number().int().positive().default(30),
   RUN_HEARTBEAT_INTERVAL_MS: z.coerce.number().int().positive().default(7000),
+  /** How many agents this runner will supervise at once. */
+  MAX_CONCURRENT_RUNS: z.coerce.number().int().positive().max(64).default(8),
 });
 
 export type Env = z.infer<typeof envSchema>;

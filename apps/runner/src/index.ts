@@ -160,12 +160,19 @@ async function tick(): Promise<void> {
   const reaped = await dispatch.reapStale(STALE_AFTER_SECONDS);
   if (reaped.length > 0) log.warn({ count: reaped.length }, "reaped runs with no live runner");
 
-  const claim = await dispatch.claimNext(RUNNER_ID, LEASE_SECONDS);
-  if (!claim) return;
+  // Keep claiming while there is work and capacity. One claim per tick meant
+  // four agents woken at the same moment started one poll interval apart, so a
+  // team of four took six seconds to get going and a team of ten, fifteen —
+  // for no reason other than the shape of this loop.
+  while (!stopping && active.size < env.MAX_CONCURRENT_RUNS) {
+    const claim = await dispatch.claimNext(RUNNER_ID, LEASE_SECONDS);
+    if (!claim) break;
 
-  // Deliberately not awaited: a long run must not block the loop from picking
-  // up work for a different agent.
-  void executeRun(claim);
+    // Deliberately not awaited: a long run must not block the loop from picking
+    // up work for a different agent. `executeRun` adds to `active` before its
+    // first await, so the check above sees this one on the next pass.
+    void executeRun(claim);
+  }
 }
 
 async function loop(): Promise<void> {
