@@ -11,10 +11,12 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AgentsIndexRouteImport } from './routes/agents/index'
-import { Route as AgentsRefRouteImport } from './routes/agents/$ref'
-import { Route as AgentsNewRouteImport } from './routes/agents/new'
+import { Route as AgentsSplatRouteImport } from './routes/agents/$'
 import { Route as OrganizationsIndexRouteImport } from './routes/organizations/index'
-import { Route as OrganizationsRefRouteImport } from './routes/organizations/$ref'
+import { Route as OrganizationsRefIndexRouteImport } from './routes/organizations/$ref/index'
+import { Route as OrganizationsRefAgentsIndexRouteImport } from './routes/organizations/$ref/agents/index'
+import { Route as OrganizationsRefAgentsAgentRefRouteImport } from './routes/organizations/$ref/agents/$agentRef'
+import { Route as OrganizationsRefAgentsNewRouteImport } from './routes/organizations/$ref/agents/new'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -26,14 +28,9 @@ const AgentsIndexRoute = AgentsIndexRouteImport.update({
   path: '/agents/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AgentsRefRoute = AgentsRefRouteImport.update({
-  id: '/agents/$ref',
-  path: '/agents/$ref',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AgentsNewRoute = AgentsNewRouteImport.update({
-  id: '/agents/new',
-  path: '/agents/new',
+const AgentsSplatRoute = AgentsSplatRouteImport.update({
+  id: '/agents/$',
+  path: '/agents/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OrganizationsIndexRoute = OrganizationsIndexRouteImport.update({
@@ -41,71 +38,103 @@ const OrganizationsIndexRoute = OrganizationsIndexRouteImport.update({
   path: '/organizations/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const OrganizationsRefRoute = OrganizationsRefRouteImport.update({
-  id: '/organizations/$ref',
-  path: '/organizations/$ref',
+const OrganizationsRefIndexRoute = OrganizationsRefIndexRouteImport.update({
+  id: '/organizations/$ref/',
+  path: '/organizations/$ref/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OrganizationsRefAgentsIndexRoute =
+  OrganizationsRefAgentsIndexRouteImport.update({
+    id: '/organizations/$ref/agents/',
+    path: '/organizations/$ref/agents/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const OrganizationsRefAgentsAgentRefRoute =
+  OrganizationsRefAgentsAgentRefRouteImport.update({
+    id: '/organizations/$ref/agents/$agentRef',
+    path: '/organizations/$ref/agents/$agentRef',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const OrganizationsRefAgentsNewRoute =
+  OrganizationsRefAgentsNewRouteImport.update({
+    id: '/organizations/$ref/agents/new',
+    path: '/organizations/$ref/agents/new',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/agents/$ref': typeof AgentsRefRoute
-  '/agents/new': typeof AgentsNewRoute
-  '/organizations/$ref': typeof OrganizationsRefRoute
+  '/agents/$': typeof AgentsSplatRoute
   '/agents/': typeof AgentsIndexRoute
   '/organizations/': typeof OrganizationsIndexRoute
+  '/organizations/$ref/': typeof OrganizationsRefIndexRoute
+  '/organizations/$ref/agents/$agentRef': typeof OrganizationsRefAgentsAgentRefRoute
+  '/organizations/$ref/agents/new': typeof OrganizationsRefAgentsNewRoute
+  '/organizations/$ref/agents/': typeof OrganizationsRefAgentsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/agents/$ref': typeof AgentsRefRoute
-  '/agents/new': typeof AgentsNewRoute
-  '/organizations/$ref': typeof OrganizationsRefRoute
+  '/agents/$': typeof AgentsSplatRoute
   '/agents': typeof AgentsIndexRoute
   '/organizations': typeof OrganizationsIndexRoute
+  '/organizations/$ref': typeof OrganizationsRefIndexRoute
+  '/organizations/$ref/agents/$agentRef': typeof OrganizationsRefAgentsAgentRefRoute
+  '/organizations/$ref/agents/new': typeof OrganizationsRefAgentsNewRoute
+  '/organizations/$ref/agents': typeof OrganizationsRefAgentsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/agents/$ref': typeof AgentsRefRoute
-  '/agents/new': typeof AgentsNewRoute
-  '/organizations/$ref': typeof OrganizationsRefRoute
+  '/agents/$': typeof AgentsSplatRoute
   '/agents/': typeof AgentsIndexRoute
   '/organizations/': typeof OrganizationsIndexRoute
+  '/organizations/$ref/': typeof OrganizationsRefIndexRoute
+  '/organizations/$ref/agents/$agentRef': typeof OrganizationsRefAgentsAgentRefRoute
+  '/organizations/$ref/agents/new': typeof OrganizationsRefAgentsNewRoute
+  '/organizations/$ref/agents/': typeof OrganizationsRefAgentsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/agents/$ref'
-    | '/agents/new'
-    | '/organizations/$ref'
+    | '/agents/$'
     | '/agents/'
     | '/organizations/'
+    | '/organizations/$ref/'
+    | '/organizations/$ref/agents/$agentRef'
+    | '/organizations/$ref/agents/new'
+    | '/organizations/$ref/agents/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/agents/$ref'
-    | '/agents/new'
-    | '/organizations/$ref'
+    | '/agents/$'
     | '/agents'
     | '/organizations'
+    | '/organizations/$ref'
+    | '/organizations/$ref/agents/$agentRef'
+    | '/organizations/$ref/agents/new'
+    | '/organizations/$ref/agents'
   id:
     | '__root__'
     | '/'
-    | '/agents/$ref'
-    | '/agents/new'
-    | '/organizations/$ref'
+    | '/agents/$'
     | '/agents/'
     | '/organizations/'
+    | '/organizations/$ref/'
+    | '/organizations/$ref/agents/$agentRef'
+    | '/organizations/$ref/agents/new'
+    | '/organizations/$ref/agents/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AgentsRefRoute: typeof AgentsRefRoute
-  AgentsNewRoute: typeof AgentsNewRoute
-  OrganizationsRefRoute: typeof OrganizationsRefRoute
+  AgentsSplatRoute: typeof AgentsSplatRoute
   AgentsIndexRoute: typeof AgentsIndexRoute
   OrganizationsIndexRoute: typeof OrganizationsIndexRoute
+  OrganizationsRefIndexRoute: typeof OrganizationsRefIndexRoute
+  OrganizationsRefAgentsAgentRefRoute: typeof OrganizationsRefAgentsAgentRefRoute
+  OrganizationsRefAgentsNewRoute: typeof OrganizationsRefAgentsNewRoute
+  OrganizationsRefAgentsIndexRoute: typeof OrganizationsRefAgentsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -124,18 +153,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgentsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/agents/$ref': {
-      id: '/agents/$ref'
-      path: '/agents/$ref'
-      fullPath: '/agents/$ref'
-      preLoaderRoute: typeof AgentsRefRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/agents/new': {
-      id: '/agents/new'
-      path: '/agents/new'
-      fullPath: '/agents/new'
-      preLoaderRoute: typeof AgentsNewRouteImport
+    '/agents/$': {
+      id: '/agents/$'
+      path: '/agents/$'
+      fullPath: '/agents/$'
+      preLoaderRoute: typeof AgentsSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/organizations/': {
@@ -145,11 +167,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OrganizationsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/organizations/$ref': {
-      id: '/organizations/$ref'
+    '/organizations/$ref/': {
+      id: '/organizations/$ref/'
       path: '/organizations/$ref'
-      fullPath: '/organizations/$ref'
-      preLoaderRoute: typeof OrganizationsRefRouteImport
+      fullPath: '/organizations/$ref/'
+      preLoaderRoute: typeof OrganizationsRefIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/organizations/$ref/agents/': {
+      id: '/organizations/$ref/agents/'
+      path: '/organizations/$ref/agents'
+      fullPath: '/organizations/$ref/agents/'
+      preLoaderRoute: typeof OrganizationsRefAgentsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/organizations/$ref/agents/$agentRef': {
+      id: '/organizations/$ref/agents/$agentRef'
+      path: '/organizations/$ref/agents/$agentRef'
+      fullPath: '/organizations/$ref/agents/$agentRef'
+      preLoaderRoute: typeof OrganizationsRefAgentsAgentRefRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/organizations/$ref/agents/new': {
+      id: '/organizations/$ref/agents/new'
+      path: '/organizations/$ref/agents/new'
+      fullPath: '/organizations/$ref/agents/new'
+      preLoaderRoute: typeof OrganizationsRefAgentsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -157,11 +200,13 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AgentsRefRoute: AgentsRefRoute,
-  AgentsNewRoute: AgentsNewRoute,
-  OrganizationsRefRoute: OrganizationsRefRoute,
+  AgentsSplatRoute: AgentsSplatRoute,
   AgentsIndexRoute: AgentsIndexRoute,
   OrganizationsIndexRoute: OrganizationsIndexRoute,
+  OrganizationsRefIndexRoute: OrganizationsRefIndexRoute,
+  OrganizationsRefAgentsAgentRefRoute: OrganizationsRefAgentsAgentRefRoute,
+  OrganizationsRefAgentsNewRoute: OrganizationsRefAgentsNewRoute,
+  OrganizationsRefAgentsIndexRoute: OrganizationsRefAgentsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

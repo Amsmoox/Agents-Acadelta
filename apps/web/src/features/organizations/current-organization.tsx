@@ -3,6 +3,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { useParams } from "@tanstack/react-router";
 import type { Organization } from "@agentco/shared";
 import { useOrganizations } from "./queries";
 
@@ -69,14 +70,26 @@ export function CurrentOrganizationProvider({ children }: { children: ReactNode 
   const query = useOrganizations();
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  // Every organization-scoped route carries the organization as `ref`. Reading
+  // it here means one rule for the whole app instead of an effect on each page,
+  // and it is what makes a link shareable and browser history meaningful.
+  const params = useParams({ strict: false }) as { ref?: string };
+  const urlRef = params.ref;
+
   const organizations = useMemo(() => query.data ?? [], [query.data]);
   const switchable = useMemo(
     () => organizations.filter((o) => o.status !== "archived"),
     [organizations],
   );
 
+  const fromUrl = urlRef
+    ? organizations.find((o) => o.slug === urlRef || o.id === urlRef)
+    : undefined;
+
   const currentId = resolveCurrentId({
-    selectedId,
+    // An organization named by the URL outranks both the in-session choice and
+    // anything remembered: the address bar is what the operator can see.
+    selectedId: fromUrl?.id ?? selectedId,
     storedId: readStored(),
     organizations,
     switchable,
@@ -91,6 +104,16 @@ export function CurrentOrganizationProvider({ children }: { children: ReactNode 
   useEffect(() => {
     if (currentId) writeStored(currentId);
   }, [currentId]);
+
+  // An organization reached by URL becomes the in-session choice, so it stays
+  // current after navigating away from its address. Without this, opening an
+  // ARCHIVED organization and then clicking Organizations silently moves you to
+  // a different tenant: the switcher only ever offers non-archived ones, and the
+  // remembered-id branch is checked against that same list.
+  const fromUrlId = fromUrl?.id;
+  useEffect(() => {
+    if (fromUrlId) setSelectedId(fromUrlId);
+  }, [fromUrlId]);
 
   const select = useCallback((id: string) => setSelectedId(id), []);
   const retry = useCallback(() => void query.refetch(), [query]);

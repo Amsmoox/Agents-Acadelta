@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Building2, Bot, ListChecks, Moon, Sun } from "lucide-react";
 import { applyTheme, readTheme, type Theme } from "@/lib/theme";
 import { OrganizationSwitcher } from "@/components/organization-switcher";
+import { useCurrentOrganization } from "@/features/organizations/current-organization";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -14,12 +15,12 @@ import { cn } from "@/lib/utils";
  * Organizations, Agents, Tasks. Sections that do not exist yet are shown and
  * disabled rather than hidden, so the shape of the product is legible from the
  * first screen.
+ *
+ * Everything below Organizations belongs to one organization, so those links
+ * are unreachable until one is chosen — shown disabled rather than hidden, so
+ * the reason is visible.
  */
-const NAV = [
-  { to: "/organizations", label: "Organizations", icon: Building2, ready: true },
-  { to: "/agents", label: "Agents", icon: Bot, ready: true },
-  { to: "/tasks", label: "Tasks", icon: ListChecks, ready: false },
-] as const;
+const PENDING = [{ label: "Tasks", icon: ListChecks }] as const;
 
 function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>("light");
@@ -46,7 +47,21 @@ function ThemeToggle() {
   );
 }
 
+const navLink = cn(
+  "flex items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5",
+  "text-xs font-medium text-muted transition-colors duration-75",
+  "hover:bg-surface hover:text-ink",
+);
+const navActive = "bg-surface text-ink shadow-[0_1px_2px_rgb(0_0_0/0.04)]";
+const navDisabled = cn(
+  "flex items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5",
+  "text-xs font-medium text-faint",
+);
+
 export function AppShell({ children }: { children: ReactNode }) {
+  const { current } = useCurrentOrganization();
+  const org = current?.slug;
+
   return (
     <div className="flex min-h-dvh flex-col md:flex-row">
       <aside
@@ -68,33 +83,41 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
 
         <nav className="flex gap-1 md:flex-col">
-          {NAV.map(({ to, label, icon: Icon, ready }) =>
-            ready ? (
-              <Link
-                key={to}
-                to={to}
-                className={cn(
-                  "flex items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5",
-                  "text-xs font-medium text-muted transition-colors duration-75",
-                  "hover:bg-surface hover:text-ink",
-                )}
-                activeProps={{ className: "bg-surface text-ink shadow-[0_1px_2px_rgb(0_0_0/0.04)]" }}
-              >
-                <Icon className="size-3.5" />
-                {label}
-              </Link>
-            ) : (
-              <span
-                key={to}
-                aria-disabled
-                title="Not built yet"
-                className="flex items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-xs font-medium text-faint"
-              >
-                <Icon className="size-3.5" />
-                {label}
-              </span>
-            ),
+          <Link
+            to="/organizations"
+            // Agents now live UNDER /organizations/:ref, and the router matches
+            // active state by prefix, so without this both items light up.
+            activeOptions={{ exact: true }}
+            className={navLink}
+            activeProps={{ className: navActive }}
+          >
+            <Building2 className="size-3.5" />
+            Organizations
+          </Link>
+
+          {org ? (
+            <Link
+              to="/organizations/$ref/agents"
+              params={{ ref: org }}
+              className={navLink}
+              activeProps={{ className: navActive }}
+            >
+              <Bot className="size-3.5" />
+              Agents
+            </Link>
+          ) : (
+            <span aria-disabled title="Choose an organization first" className={navDisabled}>
+              <Bot className="size-3.5" />
+              Agents
+            </span>
           )}
+
+          {PENDING.map(({ label, icon: Icon }) => (
+            <span key={label} aria-disabled title="Not built yet" className={navDisabled}>
+              <Icon className="size-3.5" />
+              {label}
+            </span>
+          ))}
         </nav>
       </aside>
 

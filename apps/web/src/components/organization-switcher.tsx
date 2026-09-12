@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Mharrech Ayoub <mharrech.ayoub@gmail.com>
 
-import { useNavigate } from "@tanstack/react-router";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import { Check, ChevronsUpDown, Plus, RefreshCw, Settings } from "lucide-react";
 import type { Organization } from "@agentco/shared";
 import { MenuContent, MenuItem, MenuLabel, MenuRoot, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import { Skeleton } from "@/components/ui/feedback";
 import { useCurrentOrganization } from "@/features/organizations/current-organization";
+import { destinationAfterSwitch } from "@/features/organizations/switch-destination";
 import { cn } from "@/lib/utils";
 
 /**
@@ -38,10 +39,12 @@ function Monogram({ name, className }: { name: string; className?: string }) {
 export function OrganizationSwitcher() {
   const { current, switchable, select, isPending, unavailable, retry } = useCurrentOrganization();
   const navigate = useNavigate();
+  const location = useLocation();
 
   function switchTo(organization: Organization) {
     select(organization.id);
-    void navigate({ to: "/organizations/$ref", params: { ref: organization.slug } });
+    // Keep the section, drop the resource — see switch-destination.
+    void navigate({ to: destinationAfterSwitch(location.pathname, organization.slug) });
   }
 
   if (isPending) {

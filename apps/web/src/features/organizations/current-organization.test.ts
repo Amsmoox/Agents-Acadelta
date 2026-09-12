@@ -84,6 +84,14 @@ describe("resolveCurrentId", () => {
     expect(resolve({ organizations: [org("old", "archived")] })).toBe("old");
   });
 
+  it("keeps an archived organization current once it has been selected", () => {
+    // Reaching an archived organization by URL makes it the in-session choice.
+    // If that choice were checked against the switchable list, leaving its
+    // address would silently move the operator to a different tenant.
+    const organizations = [org("a"), org("old", "archived")];
+    expect(resolve({ selectedId: "old", organizations })).toBe("old");
+  });
+
   it("is stable: resolving its own result changes nothing", () => {
     const organizations = [org("a"), org("b")];
     const first = resolve({ storedId: "b", organizations });

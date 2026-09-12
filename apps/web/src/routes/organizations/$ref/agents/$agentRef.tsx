@@ -8,8 +8,6 @@ import { ArrowLeft, Ban, MoreHorizontal, Pause, Play, RotateCcw } from "lucide-r
 import { AGENT_ROLE_LABELS } from "@agentco/shared";
 import { Page, PageHeader } from "@/components/ui/page";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Field } from "@/components/ui/field";
 import { Badge, Tag } from "@/components/ui/status";
 import { ErrorState, Skeleton, Spinner } from "@/components/ui/feedback";
 import { Segmented } from "@/components/ui/segmented";
@@ -17,7 +15,6 @@ import { List, ListRow } from "@/components/ui/list";
 import { MenuContent, MenuItem, MenuRoot, MenuTrigger } from "@/components/ui/menu";
 import { AdapterConfigForm } from "@/components/adapter-config-form";
 import { AdapterIcon } from "@/components/adapter-icon";
-import { useCurrentOrganization } from "@/features/organizations/current-organization";
 import {
   useAdapters,
   useAgent,
@@ -31,7 +28,7 @@ import { STATUS_LABEL, STATUS_TONE, chainProblem } from "@/features/agents/statu
 import { ApiError, firstIssue } from "@/lib/api";
 import { fullDate, timeAgo } from "@/lib/format";
 
-export const Route = createFileRoute("/agents/$ref")({
+export const Route = createFileRoute("/organizations/$ref/agents/$agentRef")({
   validateSearch: (search: Record<string, unknown>): { tab?: Tab } => {
     const tab = search["tab"];
     return tab === "harness" || tab === "governance" ? { tab } : {};
@@ -42,11 +39,9 @@ export const Route = createFileRoute("/agents/$ref")({
 type Tab = "overview" | "harness" | "governance";
 
 function AgentDetailPage() {
-  const { ref } = Route.useParams();
+  const { ref: org, agentRef: ref } = Route.useParams();
   const { tab = "overview" } = Route.useSearch();
   const navigate = useNavigate();
-  const { current } = useCurrentOrganization();
-  const org = current?.slug;
   const query = useAgent(org, ref);
 
   if (query.isPending) {
@@ -60,19 +55,33 @@ function AgentDetailPage() {
   }
 
   if (query.isError) {
-    const missing = query.error instanceof ApiError && query.error.status === 404;
+    const error = query.error instanceof ApiError ? query.error : null;
+    // AGC-2001 is the organization, AGC-3001 the agent. Naming the wrong one
+    // sends the operator looking for a problem that is not there.
+    const orgMissing = error?.code === "AGC-2001";
+    const missing = error?.status === 404;
     return (
       <Page>
         <ErrorState
-          title={missing ? "Agent not found" : "Can't load this agent"}
+          title={
+            orgMissing ? "Organization not found" : missing ? "Agent not found" : "Can't load this agent"
+          }
           description={
-            missing
-              ? "It may have been terminated, or the link is wrong."
-              : "The API didn't answer. Check that it's running, then try again."
+            orgMissing
+              ? `No organization called "${org}". Check the link.`
+              : missing
+                ? "It may have been terminated, or the link is wrong."
+                : "The API didn't answer. Check that it's running, then try again."
           }
           action={
-            missing ? (
-              <Link to="/agents" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+            // When the organization is what is missing, "back to agents" would
+            // land on the same dead end; go up a level instead.
+            orgMissing ? (
+              <Link to="/organizations" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+                Go to organizations
+              </Link>
+            ) : missing ? (
+              <Link to="/organizations/$ref/agents" params={{ ref: org }} className={buttonVariants({ variant: "secondary", size: "sm" })}>
                 Back to agents
               </Link>
             ) : (
@@ -95,7 +104,7 @@ function AgentDetailPage() {
     <Page>
       <PageHeader
         back={
-          <Link to="/agents" className="inline-flex items-center gap-1 text-2xs text-muted hover:text-ink">
+          <Link to="/organizations/$ref/agents" params={{ ref: org }} className="inline-flex items-center gap-1 text-2xs text-muted hover:text-ink">
             <ArrowLeft className="size-3" />
             Agents
           </Link>
@@ -113,7 +122,7 @@ function AgentDetailPage() {
             {agent.manager ? <span className="text-faint">reports to {agent.manager.name}</span> : null}
           </>
         }
-        actions={org ? <AgentActions org={org} agent={agent} /> : null}
+        actions={<AgentActions org={org} agent={agent} />}
       />
 
       {agent.status === "error" && agent.errorReason ? (
@@ -128,8 +137,8 @@ function AgentDetailPage() {
           value={tab}
           onChange={(next) =>
             void navigate({
-              to: "/agents/$ref",
-              params: { ref },
+              to: "/organizations/$ref/agents/$agentRef",
+              params: { ref: org, agentRef: ref },
               search: next === "overview" ? {} : { tab: next },
               replace: true,
             })
@@ -142,9 +151,9 @@ function AgentDetailPage() {
         />
       </div>
 
-      {org && tab === "overview" ? <Overview org={org} agent={agent} /> : null}
-      {org && tab === "harness" ? <Harness org={org} agent={agent} /> : null}
-      {org && tab === "governance" ? <Governance org={org} agent={agent} /> : null}
+      {tab === "overview" ? <Overview org={org} agent={agent} /> : null}
+      {tab === "harness" ? <Harness org={org} agent={agent} /> : null}
+      {tab === "governance" ? <Governance org={org} agent={agent} /> : null}
     </Page>
   );
 }

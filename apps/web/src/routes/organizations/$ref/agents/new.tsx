@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: 2026 Mharrech Ayoub <mharrech.ayoub@gmail.com>
 
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { ArrowLeft, Check } from "lucide-react";
 import { AGENT_ROLES, AGENT_ROLE_LABELS, type AgentRole } from "@agentco/shared";
@@ -10,21 +10,22 @@ import { Page, PageHeader } from "@/components/ui/page";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
-import { Spinner } from "@/components/ui/feedback";
+import { ErrorState, Skeleton, Spinner } from "@/components/ui/feedback";
 import { AdapterConfigForm } from "@/components/adapter-config-form";
 import { AdapterIcon } from "@/components/adapter-icon";
 import { useCurrentOrganization } from "@/features/organizations/current-organization";
+import { urlOrganizationMatches } from "@/features/organizations/url-organization";
 import { useAdapters, useAgents, useCreateAgent } from "@/features/agents/queries";
 import { ApiError, firstIssue } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/agents/new")({
+export const Route = createFileRoute("/organizations/$ref/agents/new")({
   component: NewAgentPage,
 });
 
 function NewAgentPage() {
-  const { current } = useCurrentOrganization();
-  const org = current?.slug ?? "";
+  const { ref: org } = Route.useParams();
+  const { current, isPending: orgPending, unavailable } = useCurrentOrganization();
   const navigate = useNavigate();
   const adapters = useAdapters();
   const existing = useAgents(org);
@@ -38,6 +39,12 @@ function NewAgentPage() {
   const [reportsTo, setReportsTo] = useState("");
   const [error, setError] = useState<string>();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  // Switching organization changes `ref` but does not remount this route, and
+  // "Reports to" holds an agent id from the organization being left. Keeping it
+  // would submit a cross-tenant manager; the name and role are not scoped, so
+  // they survive.
+  useEffect(() => setReportsTo(""), [org]);
 
   const choices = useMemo(
     () => (adapters.data ?? []).filter((adapter) => !adapter.hidden),
@@ -70,7 +77,7 @@ function NewAgentPage() {
         ...(reportsTo ? { reportsTo } : {}),
       });
       toast.success(`Hired ${agent.name}`);
-      await navigate({ to: "/agents/$ref", params: { ref: agent.slug } });
+      await navigate({ to: "/organizations/$ref/agents/$agentRef", params: { ref: org, agentRef: agent.slug } });
     } catch (failure) {
       // Adapter-config problems are per-field, so they belong on the field.
       if (failure instanceof ApiError && failure.code === "AGC-3010") {
@@ -83,11 +90,38 @@ function NewAgentPage() {
     }
   }
 
-  if (!current) {
+  // Three different situations that all leave `current` empty, and only one of
+  // them means the organization does not exist.
+  if (orgPending) {
     return (
       <Page>
         <PageHeader title="Hire an agent" />
-        <p className="text-xs text-muted">Pick an organization first.</p>
+        <Skeleton className="h-48 w-full" />
+      </Page>
+    );
+  }
+
+  if (unavailable) {
+    return (
+      <Page>
+        <PageHeader title="Hire an agent" />
+        <ErrorState
+          title="Can't reach the server"
+          description="The API didn't answer, so this organization could not be loaded."
+        />
+      </Page>
+    );
+  }
+
+  // Never render one organization's screen under another organization's address.
+  if (!current || !urlOrganizationMatches(current, org)) {
+    return (
+      <Page>
+        <PageHeader title="Hire an agent" />
+        <ErrorState
+          title="Organization not found"
+          description={`No organization called "${org}". It may have been renamed, or the link is wrong.`}
+        />
       </Page>
     );
   }
@@ -96,7 +130,7 @@ function NewAgentPage() {
     <Page>
       <PageHeader
         back={
-          <Link to="/agents" className="inline-flex items-center gap-1 text-2xs text-muted hover:text-ink">
+          <Link to="/organizations/$ref/agents" params={{ ref: org }} className="inline-flex items-center gap-1 text-2xs text-muted hover:text-ink">
             <ArrowLeft className="size-3" />
             Agents
           </Link>
@@ -225,7 +259,7 @@ function NewAgentPage() {
         {error && selected ? <p className="text-xs text-danger">{error}</p> : null}
 
         <div className="flex items-center justify-end gap-2">
-          <Link to="/agents" className={buttonVariants({ variant: "ghost", size: "md" })}>
+          <Link to="/organizations/$ref/agents" params={{ ref: org }} className={buttonVariants({ variant: "ghost", size: "md" })}>
             Cancel
           </Link>
           <Button

@@ -4,6 +4,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { LegacyAgentsRedirect } from "@/features/agents/legacy-redirect";
 
-export const Route = createFileRoute("/agents/")({
+export const Route = createFileRoute("/agents/$")({
   component: LegacyAgentsRedirect,
 });
