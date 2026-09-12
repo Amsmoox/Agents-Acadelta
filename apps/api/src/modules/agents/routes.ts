@@ -29,11 +29,20 @@ export async function registerAgentRoutes(instance: FastifyInstance) {
 
   const orgId = async (ref: string) => (await organizations.requireByRef(ref)).id;
 
+  /**
+   * For anything that starts work, spends money, or changes configuration.
+   *
+   * An archived organization stays fully readable, and you can still stop
+   * things inside it — pausing and terminating only ever reduce activity. What
+   * it will not do any more is let you hire, edit, re-enable or invoke.
+   */
+  const activeOrgId = async (ref: string) => (await organizations.requireActiveByRef(ref)).id;
+
   app.post(
     "/organizations/:orgRef/agents",
     { schema: { params: orgParams, body: createAgentSchema } },
     async (request, reply) => {
-      const agent = await repo.create(await orgId(request.params.orgRef), request.body);
+      const agent = await repo.create(await activeOrgId(request.params.orgRef), request.body);
       return reply.status(201).send(agent);
     },
   );
@@ -60,7 +69,7 @@ export async function registerAgentRoutes(instance: FastifyInstance) {
     "/organizations/:orgRef/agents/:ref",
     { schema: { params: agentParams, body: updateAgentSchema } },
     async (request) =>
-      repo.update(await orgId(request.params.orgRef), request.params.ref, request.body),
+      repo.update(await activeOrgId(request.params.orgRef), request.params.ref, request.body),
   );
 
   app.post(
@@ -76,7 +85,7 @@ export async function registerAgentRoutes(instance: FastifyInstance) {
     "/organizations/:orgRef/agents/:ref/resume",
     { schema: { params: agentParams } },
     async (request) =>
-      repo.setStatus(await orgId(request.params.orgRef), request.params.ref, "idle", {
+      repo.setStatus(await activeOrgId(request.params.orgRef), request.params.ref, "idle", {
         from: ["paused"],
       }),
   );
@@ -85,7 +94,7 @@ export async function registerAgentRoutes(instance: FastifyInstance) {
     "/organizations/:orgRef/agents/:ref/clear-error",
     { schema: { params: agentParams } },
     async (request) =>
-      repo.setStatus(await orgId(request.params.orgRef), request.params.ref, "idle", {
+      repo.setStatus(await activeOrgId(request.params.orgRef), request.params.ref, "idle", {
         from: ["error"],
       }),
   );
@@ -94,7 +103,7 @@ export async function registerAgentRoutes(instance: FastifyInstance) {
     "/organizations/:orgRef/agents/:ref/approve",
     { schema: { params: agentParams } },
     async (request) =>
-      repo.setStatus(await orgId(request.params.orgRef), request.params.ref, "idle", {
+      repo.setStatus(await activeOrgId(request.params.orgRef), request.params.ref, "idle", {
         from: ["pending_approval"],
       }),
   );
@@ -121,7 +130,7 @@ export async function registerAgentRoutes(instance: FastifyInstance) {
     { schema: { params: revisionParams } },
     async (request) =>
       repo.rollback(
-        await orgId(request.params.orgRef),
+        await activeOrgId(request.params.orgRef),
         request.params.ref,
         request.params.revisionId,
       ),

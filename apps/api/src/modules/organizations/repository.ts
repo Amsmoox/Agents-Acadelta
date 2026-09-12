@@ -136,6 +136,23 @@ export function createOrganizationRepository(db: Database) {
       return found;
     },
 
+    /**
+     * The same lookup, for anything that writes.
+     *
+     * Archiving used to guard only this table's own update, so an archived
+     * organization still accepted new agents, edits to old ones, and — worst —
+     * `invoke`, which spends real money in a tenant somebody deliberately put
+     * away. Reads stay open: being able to look at what an archived
+     * organization contains is the point of not deleting it.
+     */
+    async requireActiveByRef(ref: string): Promise<Organization> {
+      const found = await this.requireByRef(ref);
+      if (found.status === "archived") {
+        throw new AppError("ORGANIZATION_ARCHIVED", { slug: found.slug });
+      }
+      return found;
+    },
+
     async list(query: ListOrganizationsQuery): Promise<{
       data: Organization[];
       nextCursor: string | null;

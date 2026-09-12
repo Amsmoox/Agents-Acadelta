@@ -31,6 +31,8 @@ export async function registerKnowledgeRoutes(instance: FastifyInstance) {
   const app = instance.withTypeProvider<ZodTypeProvider>();
 
   const orgId = async (ref: string) => (await organizations.requireByRef(ref)).id;
+  /** Knowledge is configuration: readable while archived, not editable. */
+  const activeOrgId = async (ref: string) => (await organizations.requireActiveByRef(ref)).id;
   const agentId = async (org: string, ref: string) => (await agents.get(org, ref)).id;
 
   // ---- the organization's skill library ----
@@ -39,7 +41,7 @@ export async function registerKnowledgeRoutes(instance: FastifyInstance) {
     "/organizations/:orgRef/skills",
     { schema: { params: orgParams, body: createSkillSchema } },
     async (request, reply) => {
-      const skill = await skills.create(await orgId(request.params.orgRef), request.body);
+      const skill = await skills.create(await activeOrgId(request.params.orgRef), request.body);
       return reply.status(201).send(skill);
     },
   );
@@ -60,14 +62,14 @@ export async function registerKnowledgeRoutes(instance: FastifyInstance) {
     "/organizations/:orgRef/skills/:ref",
     { schema: { params: skillParams, body: updateSkillSchema } },
     async (request) =>
-      skills.update(await orgId(request.params.orgRef), request.params.ref, request.body),
+      skills.update(await activeOrgId(request.params.orgRef), request.params.ref, request.body),
   );
 
   app.delete(
     "/organizations/:orgRef/skills/:ref",
     { schema: { params: skillParams } },
     async (request, reply) => {
-      await skills.remove(await orgId(request.params.orgRef), request.params.ref);
+      await skills.remove(await activeOrgId(request.params.orgRef), request.params.ref);
       return reply.status(204).send();
     },
   );
@@ -88,7 +90,7 @@ export async function registerKnowledgeRoutes(instance: FastifyInstance) {
     "/organizations/:orgRef/agents/:ref/skills",
     { schema: { params: agentParams, body: setAgentSkillsSchema } },
     async (request) => {
-      const org = await orgId(request.params.orgRef);
+      const org = await activeOrgId(request.params.orgRef);
       const agent = await agentId(org, request.params.ref);
       return { data: await skills.setEnabled(org, agent, request.body.skillIds) };
     },
@@ -126,7 +128,7 @@ export async function registerKnowledgeRoutes(instance: FastifyInstance) {
     "/organizations/:orgRef/agents/:ref/instructions",
     { schema: { params: agentParams, body: writeInstructionFileSchema } },
     async (request) => {
-      const org = await orgId(request.params.orgRef);
+      const org = await activeOrgId(request.params.orgRef);
       const agent = await agentId(org, request.params.ref);
       return instructions.write(org, agent, request.body.path, request.body.content);
     },
@@ -137,7 +139,7 @@ export async function registerKnowledgeRoutes(instance: FastifyInstance) {
     "/organizations/:orgRef/agents/:ref/instructions/*",
     { schema: { params: filePathParams } },
     async (request, reply) => {
-      const org = await orgId(request.params.orgRef);
+      const org = await activeOrgId(request.params.orgRef);
       const agent = await agentId(org, request.params.ref);
       await instructions.remove(org, agent, request.params["*"]);
       return reply.status(204).send();

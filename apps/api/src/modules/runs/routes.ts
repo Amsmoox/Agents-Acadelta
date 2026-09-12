@@ -27,6 +27,8 @@ export async function registerRunRoutes(instance: FastifyInstance) {
   const app = instance.withTypeProvider<ZodTypeProvider>();
 
   const orgId = async (ref: string) => (await organizations.requireByRef(ref)).id;
+  /** Invoking spends money, so it needs a live organization. Cancelling does not. */
+  const activeOrgId = async (ref: string) => (await organizations.requireActiveByRef(ref)).id;
 
   /**
    * Asks an agent to run.
@@ -39,7 +41,7 @@ export async function registerRunRoutes(instance: FastifyInstance) {
     "/organizations/:orgRef/agents/:ref/invoke",
     { schema: { params: agentParams, body: invokeSchema } },
     async (request, reply) => {
-      const org = await orgId(request.params.orgRef);
+      const org = await activeOrgId(request.params.orgRef);
       const agent = await agents.get(org, request.params.ref);
 
       if (NON_INVOKABLE_STATUSES.includes(agent.status)) {
