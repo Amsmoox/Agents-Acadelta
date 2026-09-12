@@ -74,6 +74,17 @@ export const ERRORS = {
     status: 422,
     message: "The agent settings are incomplete.",
   },
+  // 4xxx - knowledge: instructions and skills
+  SKILL_NOT_FOUND: { code: 4001, status: 404, message: "Skill not found." },
+  SKILL_SLUG_TAKEN: { code: 4002, status: 409, message: "That skill name is already in use." },
+  SKILL_HEADER_INVALID: { code: 4003, status: 422, message: "The skill header is not valid." },
+  INSTRUCTION_FILE_NOT_FOUND: { code: 4004, status: 404, message: "Instruction file not found." },
+  INSTRUCTION_PATH_INVALID: { code: 4005, status: 422, message: "That file path is not allowed." },
+  INSTRUCTION_ENTRY_REQUIRED: {
+    code: 4006,
+    status: 409,
+    message: "AGENTS.md is the entry file and cannot be deleted.",
+  },
 } as const;
 
 export type ErrorKey = keyof typeof ERRORS;
