@@ -82,7 +82,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           <OrganizationSwitcher />
         </div>
 
-        <nav className="flex gap-1 md:flex-col">
+        {/* Wraps on a narrow screen rather than running off the edge. It was a
+            single row of four and is a row of seven now, and scrolling it would
+            hide the last items behind a gesture nobody is told about. */}
+        <nav className="flex flex-wrap gap-1 md:flex-col md:flex-nowrap">
           <Link
             to="/organizations"
             // Agents now live UNDER /organizations/:ref, and the router matches
