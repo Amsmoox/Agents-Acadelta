@@ -1,4 +1,10 @@
 {
   "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // This package ships a command-line program, so it needs Node's globals and
+    // its `node:` modules. Named explicitly because nothing else here pulls
+    // them in transitively the way the apps do.
+    "types": ["node"]
+  },
   "include": ["src/**/*.ts"]
 }

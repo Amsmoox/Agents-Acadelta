@@ -15,6 +15,8 @@ import { registerAgentRoutes } from "./modules/agents/routes.js";
 import { registerAdapterRoutes } from "./modules/adapters/routes.js";
 import { registerKnowledgeRoutes } from "./modules/skills/routes.js";
 import { registerRunRoutes } from "./modules/runs/routes.js";
+import { registerTaskRoutes } from "./modules/tasks/routes.js";
+import { registerAgentApiRoutes } from "./modules/agent-api/routes.js";
 import { registerErrorHandler } from "./error-handler.js";
 
 export type AppContext = {
@@ -55,6 +57,10 @@ export async function buildApp(env: Env): Promise<AppContext> {
   await app.register(registerAdapterRoutes);
   await app.register(registerKnowledgeRoutes);
   await app.register(registerRunRoutes);
+  await app.register(registerTaskRoutes);
+  // Its own plugin, so its authentication hook cannot leak onto the routes a
+  // person uses — and a session cannot reach the routes an agent uses.
+  await app.register(registerAgentApiRoutes);
 
   return {
     app,
