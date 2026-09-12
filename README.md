@@ -44,6 +44,42 @@ packages/
 **The one rule:** `api` never spawns a child process, `runner` never serves a
 request. They talk only through Postgres.
 
+## Data model
+
+```
+Organization            the tenant boundary — owns everything
+  ├── Projects          org-scoped
+  ├── Agents            org-scoped, NOT project-scoped
+  └── project_members   join table: which agents work on which projects
+```
+
+Agents belong to the **organization**, not to a project. Which agents work on
+which projects is a separate membership relation, so an agent can serve one
+project, several, or none without any change to the model.
+
+Every table this project owns is prefixed `agc_`, carries an `organization_id`,
+and no query may span two organizations.
+
+Organizations are **archived, never deleted**. A delete would cascade across
+every task, run, cost event and audit row in the tenant — precisely the history
+an audit trail exists to keep.
+
+### Organizations API
+
+| Method | Path | Notes |
+|---|---|---|
+| `POST` | `/organizations` | slug derived from name, or passed explicitly |
+| `GET` | `/organizations` | keyset paginated, `?status=&limit=&cursor=` |
+| `GET` | `/organizations/:ref` | `:ref` is a UUID **or** a slug |
+| `PATCH` | `/organizations/:ref` | name and mission; slug is immutable |
+| `POST` | `/organizations/:ref/archive` | idempotent |
+| `POST` | `/organizations/:ref/restore` | idempotent |
+
+Errors share one shape — `{ "error": { "code": "AGC-2001", "message": ..., "detail"?: ... } }`.
+Codes are stable: a code is retired, never repurposed.
+
+Requires **PostgreSQL 18+** — identifiers default to the `uuidv7()` builtin.
+
 ## Scripts
 
 | Command | What |

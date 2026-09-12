@@ -22,12 +22,13 @@
     "db:generate": "pnpm --filter @agentco/db generate",
     "db:migrate": "pnpm --filter @agentco/db migrate",
     "db:studio": "pnpm --filter @agentco/db studio",
-    "infra:up": "docker compose up -d",
-    "infra:down": "docker compose down",
-    "infra:reset": "docker compose down -v && docker compose up -d",
+    "infra:up": "docker compose up -d 2>/dev/null || docker-compose up -d",
+    "infra:down": "docker compose down 2>/dev/null || docker-compose down",
+    "infra:reset": "(docker compose down -v 2>/dev/null || docker-compose down -v) && pnpm infra:up",
     "license:check": "node scripts/license-header.mjs --check",
     "license:fix": "node scripts/license-header.mjs --write",
-    "check": "pnpm license:check && pnpm typecheck && pnpm lint && pnpm test"
+    "check": "pnpm license:check && pnpm typecheck && pnpm lint && pnpm test",
+    "test:integration": "vitest run apps/api"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
