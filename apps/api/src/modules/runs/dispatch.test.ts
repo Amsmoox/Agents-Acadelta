@@ -285,6 +285,28 @@ describe.skipIf(!reachable)("dispatch", () => {
       expect(row!.status).toBe("idle");
     });
 
+    it("records the cost even when the agent was paused mid-run", async () => {
+      // The spend used to ride along with the status change, which is guarded
+      // on the agent still being `running`. Pausing or terminating an agent
+      // while a run was in flight therefore threw away the bill for it — the
+      // one case where knowing what was spent matters most.
+      await dispatch.requestWake(org, agent, reason("timer"));
+      const run = await dispatch.claimNext("runner-1", 30);
+      await db.update(agents).set({ status: "running" }).where(eq(agents.id, agent));
+
+      await db
+        .update(agents)
+        .set({ status: "paused", pauseReason: "manual" })
+        .where(eq(agents.id, agent));
+
+      await dispatch.finish(run!.runId, { status: "completed", exitCode: 0, costCents: 137 });
+
+      const [row] = await db.select().from(agents).where(eq(agents.id, agent));
+      expect(row!.spentMonthlyCents).toBe(137);
+      // Still paused: a run finishing must not undo a person's decision.
+      expect(row!.status).toBe("paused");
+    });
+
     it("leaves the agent in error after a failed run, with the reason visible", async () => {
       await dispatch.requestWake(org, agent, reason("timer"));
       const run = await dispatch.claimNext("runner-1", 30);

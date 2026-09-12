@@ -276,15 +276,26 @@ export function createDispatchRepository(db: Database) {
           .returning();
         if (!run) return;
 
-        // A failed run leaves the agent in error so the state is visible without
-        // opening the transcript; anything else returns it to idle.
+        // Money spent is recorded whatever state the agent is in. This used to
+        // ride along with the status change below, which meant pausing or
+        // terminating an agent mid-run threw away the bill for the run that was
+        // already in flight — the one case where the spend matters most.
+        await tx
+          .update(agents)
+          .set({
+            spentMonthlyCents: sql`${agents.spentMonthlyCents} + ${outcome.costCents ?? 0}`,
+            lastHeartbeatAt: new Date(),
+          })
+          .where(eq(agents.id, run.agentId));
+
+        // The status transition stays conditional: an agent a person paused or
+        // terminated while this run was working must not be quietly returned to
+        // idle by the run finishing.
         await tx
           .update(agents)
           .set({
             status: outcome.status === "failed" ? "error" : "idle",
             ...(outcome.status === "failed" ? { errorReason: outcome.error ?? "Run failed." } : {}),
-            spentMonthlyCents: sql`${agents.spentMonthlyCents} + ${outcome.costCents ?? 0}`,
-            lastHeartbeatAt: new Date(),
           })
           .where(and(eq(agents.id, run.agentId), eq(agents.status, "running")));
       });
