@@ -3,7 +3,7 @@
 
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
-import { Activity, Building2, Bot, FolderKanban, Library, ListChecks, Moon, Settings, Sun } from "lucide-react";
+import { Activity, Building2, Bot, FolderKanban, Library, Moon, Settings, Sun } from "lucide-react";
 import { applyTheme, readTheme, type Theme } from "@/lib/theme";
 import { OrganizationSwitcher } from "@/components/organization-switcher";
 import { useCurrentOrganization } from "@/features/organizations/current-organization";
@@ -20,7 +20,11 @@ import { cn } from "@/lib/utils";
  * are unreachable until one is chosen — shown disabled rather than hidden, so
  * the reason is visible.
  */
-const PENDING = [{ label: "Tasks", icon: ListChecks }] as const;
+/**
+ * Sections that exist in the model but not yet on screen. Empty now — every
+ * part of the product the navigation promised is built.
+ */
+const PENDING: { label: string; icon: typeof Activity }[] = [];
 
 function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>("light");

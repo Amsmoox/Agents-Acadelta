@@ -22,6 +22,7 @@ import { Route as OrganizationsRefProjectsIndexRouteImport } from './routes/orga
 import { Route as OrganizationsRefProjectsProjectRefRouteImport } from './routes/organizations/$ref/projects/$projectRef'
 import { Route as OrganizationsRefSkillsIndexRouteImport } from './routes/organizations/$ref/skills/index'
 import { Route as OrganizationsRefSkillsSkillRefRouteImport } from './routes/organizations/$ref/skills/$skillRef'
+import { Route as OrganizationsRefTasksTaskKeyRouteImport } from './routes/organizations/$ref/tasks/$taskKey'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -96,6 +97,12 @@ const OrganizationsRefSkillsSkillRefRoute =
     path: '/organizations/$ref/skills/$skillRef',
     getParentRoute: () => rootRouteImport,
   } as any)
+const OrganizationsRefTasksTaskKeyRoute =
+  OrganizationsRefTasksTaskKeyRouteImport.update({
+    id: '/organizations/$ref/tasks/$taskKey',
+    path: '/organizations/$ref/tasks/$taskKey',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -108,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/organizations/$ref/agents/new': typeof OrganizationsRefAgentsNewRoute
   '/organizations/$ref/projects/$projectRef': typeof OrganizationsRefProjectsProjectRefRoute
   '/organizations/$ref/skills/$skillRef': typeof OrganizationsRefSkillsSkillRefRoute
+  '/organizations/$ref/tasks/$taskKey': typeof OrganizationsRefTasksTaskKeyRoute
   '/organizations/$ref/agents/': typeof OrganizationsRefAgentsIndexRoute
   '/organizations/$ref/projects/': typeof OrganizationsRefProjectsIndexRoute
   '/organizations/$ref/skills/': typeof OrganizationsRefSkillsIndexRoute
@@ -123,6 +131,7 @@ export interface FileRoutesByTo {
   '/organizations/$ref/agents/new': typeof OrganizationsRefAgentsNewRoute
   '/organizations/$ref/projects/$projectRef': typeof OrganizationsRefProjectsProjectRefRoute
   '/organizations/$ref/skills/$skillRef': typeof OrganizationsRefSkillsSkillRefRoute
+  '/organizations/$ref/tasks/$taskKey': typeof OrganizationsRefTasksTaskKeyRoute
   '/organizations/$ref/agents': typeof OrganizationsRefAgentsIndexRoute
   '/organizations/$ref/projects': typeof OrganizationsRefProjectsIndexRoute
   '/organizations/$ref/skills': typeof OrganizationsRefSkillsIndexRoute
@@ -139,6 +148,7 @@ export interface FileRoutesById {
   '/organizations/$ref/agents/new': typeof OrganizationsRefAgentsNewRoute
   '/organizations/$ref/projects/$projectRef': typeof OrganizationsRefProjectsProjectRefRoute
   '/organizations/$ref/skills/$skillRef': typeof OrganizationsRefSkillsSkillRefRoute
+  '/organizations/$ref/tasks/$taskKey': typeof OrganizationsRefTasksTaskKeyRoute
   '/organizations/$ref/agents/': typeof OrganizationsRefAgentsIndexRoute
   '/organizations/$ref/projects/': typeof OrganizationsRefProjectsIndexRoute
   '/organizations/$ref/skills/': typeof OrganizationsRefSkillsIndexRoute
@@ -156,6 +166,7 @@ export interface FileRouteTypes {
     | '/organizations/$ref/agents/new'
     | '/organizations/$ref/projects/$projectRef'
     | '/organizations/$ref/skills/$skillRef'
+    | '/organizations/$ref/tasks/$taskKey'
     | '/organizations/$ref/agents/'
     | '/organizations/$ref/projects/'
     | '/organizations/$ref/skills/'
@@ -171,6 +182,7 @@ export interface FileRouteTypes {
     | '/organizations/$ref/agents/new'
     | '/organizations/$ref/projects/$projectRef'
     | '/organizations/$ref/skills/$skillRef'
+    | '/organizations/$ref/tasks/$taskKey'
     | '/organizations/$ref/agents'
     | '/organizations/$ref/projects'
     | '/organizations/$ref/skills'
@@ -186,6 +198,7 @@ export interface FileRouteTypes {
     | '/organizations/$ref/agents/new'
     | '/organizations/$ref/projects/$projectRef'
     | '/organizations/$ref/skills/$skillRef'
+    | '/organizations/$ref/tasks/$taskKey'
     | '/organizations/$ref/agents/'
     | '/organizations/$ref/projects/'
     | '/organizations/$ref/skills/'
@@ -202,6 +215,7 @@ export interface RootRouteChildren {
   OrganizationsRefAgentsNewRoute: typeof OrganizationsRefAgentsNewRoute
   OrganizationsRefProjectsProjectRefRoute: typeof OrganizationsRefProjectsProjectRefRoute
   OrganizationsRefSkillsSkillRefRoute: typeof OrganizationsRefSkillsSkillRefRoute
+  OrganizationsRefTasksTaskKeyRoute: typeof OrganizationsRefTasksTaskKeyRoute
   OrganizationsRefAgentsIndexRoute: typeof OrganizationsRefAgentsIndexRoute
   OrganizationsRefProjectsIndexRoute: typeof OrganizationsRefProjectsIndexRoute
   OrganizationsRefSkillsIndexRoute: typeof OrganizationsRefSkillsIndexRoute
@@ -300,6 +314,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OrganizationsRefSkillsSkillRefRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/organizations/$ref/tasks/$taskKey': {
+      id: '/organizations/$ref/tasks/$taskKey'
+      path: '/organizations/$ref/tasks/$taskKey'
+      fullPath: '/organizations/$ref/tasks/$taskKey'
+      preLoaderRoute: typeof OrganizationsRefTasksTaskKeyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -315,6 +336,7 @@ const rootRouteChildren: RootRouteChildren = {
   OrganizationsRefProjectsProjectRefRoute:
     OrganizationsRefProjectsProjectRefRoute,
   OrganizationsRefSkillsSkillRefRoute: OrganizationsRefSkillsSkillRefRoute,
+  OrganizationsRefTasksTaskKeyRoute: OrganizationsRefTasksTaskKeyRoute,
   OrganizationsRefAgentsIndexRoute: OrganizationsRefAgentsIndexRoute,
   OrganizationsRefProjectsIndexRoute: OrganizationsRefProjectsIndexRoute,
   OrganizationsRefSkillsIndexRoute: OrganizationsRefSkillsIndexRoute,

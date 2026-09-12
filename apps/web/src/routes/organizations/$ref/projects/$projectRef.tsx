@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Mharrech Ayoub <mharrech.ayoub@gmail.com>
 
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
 import { Archive, ArrowLeft, MoreHorizontal, Pause, Play, RotateCcw, Users } from "lucide-react";
 import { buildOrgTree, type OrgChainNode, type Project, type ProjectMember } from "@agentco/shared";
@@ -15,6 +15,9 @@ import { Card } from "@/components/ui/card";
 import { CheckboxField } from "@/components/ui/checkbox";
 import { Select } from "@/components/ui/select";
 import { ErrorState, Skeleton, Spinner } from "@/components/ui/feedback";
+import { Segmented } from "@/components/ui/segmented";
+import { Board } from "./$projectRef.board.js";
+import { Objectives } from "./$projectRef.objectives.js";
 import { MenuContent, MenuItem, MenuRoot, MenuTrigger } from "@/components/ui/menu";
 import {
   DialogBody,
@@ -38,11 +41,21 @@ import { ApiError, firstIssue } from "@/lib/api";
 import { fullDate, timeAgo } from "@/lib/format";
 
 export const Route = createFileRoute("/organizations/$ref/projects/$projectRef")({
+  validateSearch: (search: Record<string, unknown>): { tab?: Tab } => {
+    const tab = search["tab"];
+    const known: Tab[] = ["team", "settings"];
+    return known.includes(tab as Tab) ? { tab: tab as Tab } : {};
+  },
   component: ProjectDetailPage,
 });
 
+/** Work first: it is what changes, and what you came to look at. */
+type Tab = "work" | "team" | "settings";
+
 function ProjectDetailPage() {
   const { ref: org, projectRef } = Route.useParams();
+  const { tab = "work" } = Route.useSearch();
+  const navigate = useNavigate();
   const query = useProject(org, projectRef);
 
   if (query.isPending) {
@@ -133,10 +146,34 @@ function ProjectDetailPage() {
         </Callout>
       ) : null}
 
-      <div className="flex flex-col gap-4">
-        <Team org={org} project={project} />
-        <Details org={org} project={project} />
+      <div className="pb-4">
+        <Segmented
+          label="Section"
+          value={tab}
+          onChange={(next) =>
+            void navigate({
+              to: "/organizations/$ref/projects/$projectRef",
+              params: { ref: org, projectRef },
+              search: next === "work" ? {} : { tab: next },
+              replace: true,
+            })
+          }
+          options={[
+            { value: "work" as Tab, label: "Work" },
+            { value: "team" as Tab, label: "Team" },
+            { value: "settings" as Tab, label: "Settings" },
+          ]}
+        />
       </div>
+
+      {tab === "work" ? (
+        <div className="flex flex-col gap-4">
+          <Objectives org={org} project={project} />
+          <Board org={org} project={project.id} disabled={archived} />
+        </div>
+      ) : null}
+      {tab === "team" ? <Team org={org} project={project} /> : null}
+      {tab === "settings" ? <Details org={org} project={project} /> : null}
     </Page>
   );
 }
