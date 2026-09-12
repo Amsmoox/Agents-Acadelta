@@ -48,6 +48,50 @@ export function useRuns(org: string, agent: string) {
   });
 }
 
+/** One run, as it appears in the organization-wide list. */
+export type OrganizationRun = {
+  id: string;
+  agentId: string;
+  agentName: string;
+  agentSlug: string;
+  adapterType: string;
+  status: Run["status"];
+  prompt: string;
+  error: string | null;
+  costCents: number;
+  inputTokens: number;
+  outputTokens: number;
+  startedAt: string | null;
+  endedAt: string | null;
+  createdAt: string;
+};
+
+/**
+ * Everything happening in the organization, newest first.
+ *
+ * Runs were only ever reachable through the agent that produced them, so
+ * "what is happening right now" meant opening each agent in turn. With four
+ * agents working together that is the question you ask most.
+ */
+export function useOrganizationRuns(org: string, status?: "live" | "finished") {
+  return useQuery({
+    queryKey: ["runs", org, "organization", status ?? "all"] as const,
+    queryFn: () =>
+      request<{ data: OrganizationRun[] }>(
+        `/organizations/${org}/runs${status ? `?status=${status}` : ""}`,
+      ),
+    select: (result) => result.data,
+    // Same two speeds as the per-agent list, and for the same reason: invoking
+    // creates a wakeup, and the run it turns into arrives a moment later.
+    refetchInterval: (query) =>
+      (query.state.data?.data ?? []).some(
+        (run) => run.status === "running" || run.status === "leased",
+      )
+        ? 2000
+        : 5000,
+  });
+}
+
 export function useInvokeAgent(org: string, agent: string) {
   const client = useQueryClient();
   return useMutation({

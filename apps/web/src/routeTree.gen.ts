@@ -14,6 +14,7 @@ import { Route as AgentsIndexRouteImport } from './routes/agents/index'
 import { Route as AgentsSplatRouteImport } from './routes/agents/$'
 import { Route as OrganizationsIndexRouteImport } from './routes/organizations/index'
 import { Route as OrganizationsRefIndexRouteImport } from './routes/organizations/$ref/index'
+import { Route as OrganizationsRefActivityRouteImport } from './routes/organizations/$ref/activity'
 import { Route as OrganizationsRefAgentsIndexRouteImport } from './routes/organizations/$ref/agents/index'
 import { Route as OrganizationsRefAgentsAgentRefRouteImport } from './routes/organizations/$ref/agents/$agentRef'
 import { Route as OrganizationsRefAgentsNewRouteImport } from './routes/organizations/$ref/agents/new'
@@ -45,6 +46,12 @@ const OrganizationsRefIndexRoute = OrganizationsRefIndexRouteImport.update({
   path: '/organizations/$ref/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OrganizationsRefActivityRoute =
+  OrganizationsRefActivityRouteImport.update({
+    id: '/organizations/$ref/activity',
+    path: '/organizations/$ref/activity',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const OrganizationsRefAgentsIndexRoute =
   OrganizationsRefAgentsIndexRouteImport.update({
     id: '/organizations/$ref/agents/',
@@ -81,6 +88,7 @@ export interface FileRoutesByFullPath {
   '/agents/$': typeof AgentsSplatRoute
   '/agents/': typeof AgentsIndexRoute
   '/organizations/': typeof OrganizationsIndexRoute
+  '/organizations/$ref/activity': typeof OrganizationsRefActivityRoute
   '/organizations/$ref/': typeof OrganizationsRefIndexRoute
   '/organizations/$ref/agents/$agentRef': typeof OrganizationsRefAgentsAgentRefRoute
   '/organizations/$ref/agents/new': typeof OrganizationsRefAgentsNewRoute
@@ -93,6 +101,7 @@ export interface FileRoutesByTo {
   '/agents/$': typeof AgentsSplatRoute
   '/agents': typeof AgentsIndexRoute
   '/organizations': typeof OrganizationsIndexRoute
+  '/organizations/$ref/activity': typeof OrganizationsRefActivityRoute
   '/organizations/$ref': typeof OrganizationsRefIndexRoute
   '/organizations/$ref/agents/$agentRef': typeof OrganizationsRefAgentsAgentRefRoute
   '/organizations/$ref/agents/new': typeof OrganizationsRefAgentsNewRoute
@@ -106,6 +115,7 @@ export interface FileRoutesById {
   '/agents/$': typeof AgentsSplatRoute
   '/agents/': typeof AgentsIndexRoute
   '/organizations/': typeof OrganizationsIndexRoute
+  '/organizations/$ref/activity': typeof OrganizationsRefActivityRoute
   '/organizations/$ref/': typeof OrganizationsRefIndexRoute
   '/organizations/$ref/agents/$agentRef': typeof OrganizationsRefAgentsAgentRefRoute
   '/organizations/$ref/agents/new': typeof OrganizationsRefAgentsNewRoute
@@ -120,6 +130,7 @@ export interface FileRouteTypes {
     | '/agents/$'
     | '/agents/'
     | '/organizations/'
+    | '/organizations/$ref/activity'
     | '/organizations/$ref/'
     | '/organizations/$ref/agents/$agentRef'
     | '/organizations/$ref/agents/new'
@@ -132,6 +143,7 @@ export interface FileRouteTypes {
     | '/agents/$'
     | '/agents'
     | '/organizations'
+    | '/organizations/$ref/activity'
     | '/organizations/$ref'
     | '/organizations/$ref/agents/$agentRef'
     | '/organizations/$ref/agents/new'
@@ -144,6 +156,7 @@ export interface FileRouteTypes {
     | '/agents/$'
     | '/agents/'
     | '/organizations/'
+    | '/organizations/$ref/activity'
     | '/organizations/$ref/'
     | '/organizations/$ref/agents/$agentRef'
     | '/organizations/$ref/agents/new'
@@ -157,6 +170,7 @@ export interface RootRouteChildren {
   AgentsSplatRoute: typeof AgentsSplatRoute
   AgentsIndexRoute: typeof AgentsIndexRoute
   OrganizationsIndexRoute: typeof OrganizationsIndexRoute
+  OrganizationsRefActivityRoute: typeof OrganizationsRefActivityRoute
   OrganizationsRefIndexRoute: typeof OrganizationsRefIndexRoute
   OrganizationsRefAgentsAgentRefRoute: typeof OrganizationsRefAgentsAgentRefRoute
   OrganizationsRefAgentsNewRoute: typeof OrganizationsRefAgentsNewRoute
@@ -202,6 +216,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OrganizationsRefIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/organizations/$ref/activity': {
+      id: '/organizations/$ref/activity'
+      path: '/organizations/$ref/activity'
+      fullPath: '/organizations/$ref/activity'
+      preLoaderRoute: typeof OrganizationsRefActivityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/organizations/$ref/agents/': {
       id: '/organizations/$ref/agents/'
       path: '/organizations/$ref/agents'
@@ -245,6 +266,7 @@ const rootRouteChildren: RootRouteChildren = {
   AgentsSplatRoute: AgentsSplatRoute,
   AgentsIndexRoute: AgentsIndexRoute,
   OrganizationsIndexRoute: OrganizationsIndexRoute,
+  OrganizationsRefActivityRoute: OrganizationsRefActivityRoute,
   OrganizationsRefIndexRoute: OrganizationsRefIndexRoute,
   OrganizationsRefAgentsAgentRefRoute: OrganizationsRefAgentsAgentRefRoute,
   OrganizationsRefAgentsNewRoute: OrganizationsRefAgentsNewRoute,

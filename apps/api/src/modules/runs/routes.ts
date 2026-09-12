@@ -73,6 +73,35 @@ export async function registerRunRoutes(instance: FastifyInstance) {
     },
   );
 
+  /**
+   * Every run in the organization, newest first.
+   *
+   * Without this the only way to see a run was to already know which agent
+   * produced it, so "what is happening right now" meant opening each agent in
+   * turn. A company of four agents is the case this product is for.
+   */
+  app.get(
+    "/organizations/:orgRef/runs",
+    {
+      schema: {
+        params: orgParams,
+        querystring: z.object({
+          status: z.enum(["live", "finished"]).optional(),
+          limit: z.coerce.number().int().min(1).max(100).default(50),
+        }),
+      },
+    },
+    async (request) => {
+      const org = await orgId(request.params.orgRef);
+      return {
+        data: await dispatch.listOrganizationRuns(org, {
+          limit: request.query.limit,
+          ...(request.query.status ? { status: request.query.status } : {}),
+        }),
+      };
+    },
+  );
+
   app.get(
     "/organizations/:orgRef/runs/:runId",
     { schema: { params: runParams } },

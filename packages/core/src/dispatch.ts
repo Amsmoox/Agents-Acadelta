@@ -416,6 +416,45 @@ export function createDispatchRepository(db: Database) {
         .limit(limit);
     },
 
+    /**
+     * Every run in the organization, newest first, with the agent's name joined
+     * on so a list of runs reads as a list of who is doing what.
+     */
+    async listOrganizationRuns(
+      organizationId: string,
+      options: { status?: "live" | "finished"; limit?: number } = {},
+    ) {
+      const filters = [eq(agentRuns.organizationId, organizationId)];
+      if (options.status === "live") {
+        filters.push(sql`${agentRuns.status} in ('leased', 'running')`);
+      } else if (options.status === "finished") {
+        filters.push(sql`${agentRuns.status} not in ('leased', 'running')`);
+      }
+
+      return db
+        .select({
+          id: agentRuns.id,
+          agentId: agentRuns.agentId,
+          agentName: agents.name,
+          agentSlug: agents.slug,
+          adapterType: agents.adapterType,
+          status: agentRuns.status,
+          prompt: agentRuns.prompt,
+          error: agentRuns.error,
+          costCents: agentRuns.costCents,
+          inputTokens: agentRuns.inputTokens,
+          outputTokens: agentRuns.outputTokens,
+          startedAt: agentRuns.startedAt,
+          endedAt: agentRuns.endedAt,
+          createdAt: agentRuns.createdAt,
+        })
+        .from(agentRuns)
+        .innerJoin(agents, eq(agents.id, agentRuns.agentId))
+        .where(and(...filters))
+        .orderBy(desc(agentRuns.createdAt), desc(agentRuns.id))
+        .limit(options.limit ?? 50);
+    },
+
     async getRun(organizationId: string, runId: string) {
       const [run] = await db
         .select()

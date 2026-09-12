@@ -43,12 +43,20 @@ describe("destinationAfterSwitch", () => {
     expect(destinationAfterSwitch("/", "beta")).toBe("/organizations/beta");
   });
 
+  it("keeps you on Activity when you switch from Activity", () => {
+    expect(destinationAfterSwitch("/organizations/acme/activity", "beta")).toBe(
+      "/organizations/beta/activity",
+    );
+  });
+
   it("never carries the old organization into the destination", () => {
     for (const path of [
       "/organizations/acme",
       "/organizations/acme/agents",
       "/organizations/acme/agents/ada",
       "/organizations/acme/agents/new",
+      "/organizations/acme/activity",
+      "/organizations/acme/skills/writing",
     ]) {
       expect(destinationAfterSwitch(path, "beta")).not.toContain("acme");
     }
