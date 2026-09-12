@@ -10,12 +10,30 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AgentsIndexRouteImport } from './routes/agents/index'
+import { Route as AgentsRefRouteImport } from './routes/agents/$ref'
+import { Route as AgentsNewRouteImport } from './routes/agents/new'
 import { Route as OrganizationsIndexRouteImport } from './routes/organizations/index'
 import { Route as OrganizationsRefRouteImport } from './routes/organizations/$ref'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AgentsIndexRoute = AgentsIndexRouteImport.update({
+  id: '/agents/',
+  path: '/agents/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AgentsRefRoute = AgentsRefRouteImport.update({
+  id: '/agents/$ref',
+  path: '/agents/$ref',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AgentsNewRoute = AgentsNewRouteImport.update({
+  id: '/agents/new',
+  path: '/agents/new',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OrganizationsIndexRoute = OrganizationsIndexRouteImport.update({
@@ -31,31 +49,62 @@ const OrganizationsRefRoute = OrganizationsRefRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/agents/$ref': typeof AgentsRefRoute
+  '/agents/new': typeof AgentsNewRoute
   '/organizations/$ref': typeof OrganizationsRefRoute
+  '/agents/': typeof AgentsIndexRoute
   '/organizations/': typeof OrganizationsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/agents/$ref': typeof AgentsRefRoute
+  '/agents/new': typeof AgentsNewRoute
   '/organizations/$ref': typeof OrganizationsRefRoute
+  '/agents': typeof AgentsIndexRoute
   '/organizations': typeof OrganizationsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/agents/$ref': typeof AgentsRefRoute
+  '/agents/new': typeof AgentsNewRoute
   '/organizations/$ref': typeof OrganizationsRefRoute
+  '/agents/': typeof AgentsIndexRoute
   '/organizations/': typeof OrganizationsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/organizations/$ref' | '/organizations/'
+  fullPaths:
+    | '/'
+    | '/agents/$ref'
+    | '/agents/new'
+    | '/organizations/$ref'
+    | '/agents/'
+    | '/organizations/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/organizations/$ref' | '/organizations'
-  id: '__root__' | '/' | '/organizations/$ref' | '/organizations/'
+  to:
+    | '/'
+    | '/agents/$ref'
+    | '/agents/new'
+    | '/organizations/$ref'
+    | '/agents'
+    | '/organizations'
+  id:
+    | '__root__'
+    | '/'
+    | '/agents/$ref'
+    | '/agents/new'
+    | '/organizations/$ref'
+    | '/agents/'
+    | '/organizations/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AgentsRefRoute: typeof AgentsRefRoute
+  AgentsNewRoute: typeof AgentsNewRoute
   OrganizationsRefRoute: typeof OrganizationsRefRoute
+  AgentsIndexRoute: typeof AgentsIndexRoute
   OrganizationsIndexRoute: typeof OrganizationsIndexRoute
 }
 
@@ -66,6 +115,27 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/agents/': {
+      id: '/agents/'
+      path: '/agents'
+      fullPath: '/agents/'
+      preLoaderRoute: typeof AgentsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/agents/$ref': {
+      id: '/agents/$ref'
+      path: '/agents/$ref'
+      fullPath: '/agents/$ref'
+      preLoaderRoute: typeof AgentsRefRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/agents/new': {
+      id: '/agents/new'
+      path: '/agents/new'
+      fullPath: '/agents/new'
+      preLoaderRoute: typeof AgentsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/organizations/': {
@@ -87,7 +157,10 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AgentsRefRoute: AgentsRefRoute,
+  AgentsNewRoute: AgentsNewRoute,
   OrganizationsRefRoute: OrganizationsRefRoute,
+  AgentsIndexRoute: AgentsIndexRoute,
   OrganizationsIndexRoute: OrganizationsIndexRoute,
 }
 export const routeTree = rootRouteImport
