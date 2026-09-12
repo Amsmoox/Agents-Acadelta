@@ -21,6 +21,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useCreateSkill, useSkills } from "@/features/skills/queries";
+import { useCurrentOrganization } from "@/features/organizations/current-organization";
+import { Callout } from "@/components/ui/callout";
 import { firstIssue } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 
@@ -38,14 +40,32 @@ export const Route = createFileRoute("/organizations/$ref/skills/")({
 function SkillsPage() {
   const { ref: org } = Route.useParams();
   const skills = useSkills(org);
+  const { current } = useCurrentOrganization();
+  const archived = current?.status === "archived";
 
   return (
     <Page>
       <PageHeader
         title="Skills"
         meta={<span>Written once, enabled per agent</span>}
-        actions={<NewSkillDialog org={org} />}
+        // Same rule as agents: an archived organization will refuse the write,
+        // so the affordance says so before it is used rather than after.
+        actions={
+          archived ? (
+            <Button variant="primary" size="md" disabled>
+              New skill
+            </Button>
+          ) : (
+            <NewSkillDialog org={org} />
+          )
+        }
       />
+
+      {archived ? (
+        <Callout tone="attention" className="mb-4">
+          This organization is archived. Its skills can be read, but not written or deleted.
+        </Callout>
+      ) : null}
 
       {skills.isPending ? (
         <List>

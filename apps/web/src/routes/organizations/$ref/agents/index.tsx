@@ -11,6 +11,7 @@ import { List, ListRow } from "@/components/ui/list";
 import { Badge, StatusDot, Tag } from "@/components/ui/status";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { Segmented } from "@/components/ui/segmented";
+import { Callout } from "@/components/ui/callout";
 import { buttonVariants } from "@/components/ui/button";
 import { Button } from "@/components/ui/button";
 import { useCurrentOrganization } from "@/features/organizations/current-organization";
@@ -82,6 +83,7 @@ function AgentsPage() {
     );
   }
 
+  const archived = current?.status === "archived";
   const roster = agents.data ?? [];
   const retired = terminated.data ?? [];
   const shown = view === "terminated" ? retired : roster;
@@ -92,12 +94,40 @@ function AgentsPage() {
         title="Agents"
         meta={current ? <span>in {current.name}</span> : null}
         actions={
-          <Link to="/organizations/$ref/agents/new" params={{ ref: org }} className={buttonVariants({ variant: "primary", size: "md" })}>
-            <Plus className="size-4" />
-            Hire agent
-          </Link>
+          // An archived organization refuses to hire, so offering a form that
+          // can only fail on submit wastes the operator's time twice.
+          archived ? (
+            <Button variant="primary" size="md" disabled>
+              <Plus className="size-4" />
+              Hire agent
+            </Button>
+          ) : (
+            <Link to="/organizations/$ref/agents/new" params={{ ref: org }} className={buttonVariants({ variant: "primary", size: "md" })}>
+              <Plus className="size-4" />
+              Hire agent
+            </Link>
+          )
         }
       />
+
+      {archived ? (
+        <Callout
+          tone="attention"
+          className="mb-4"
+          action={
+            <Link
+              to="/organizations/$ref"
+              params={{ ref: org }}
+              className={buttonVariants({ variant: "secondary", size: "sm" })}
+            >
+              Organization settings
+            </Link>
+          }
+        >
+          This organization is archived. Its agents can be read and stopped, but not hired, edited
+          or run.
+        </Callout>
+      ) : null}
 
       {roster.length > 0 ? (
         <div className="pb-3">

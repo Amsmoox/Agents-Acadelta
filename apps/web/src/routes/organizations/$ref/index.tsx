@@ -3,7 +3,7 @@
 
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
-import { toast } from "sonner";
+import { toast, useConfirm } from "@/components/ui";
 import { Archive, ArrowLeft, MoreHorizontal, RotateCcw } from "lucide-react";
 import { Page, PageHeader } from "@/components/ui/page";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -135,11 +135,12 @@ function ArchivedBanner({ ref_ }: { ref_: string }) {
 
 function RowActions({ ref_, archived }: { ref_: string; archived: boolean }) {
   const setArchived = useSetArchived(ref_);
+  const confirm = useConfirm();
 
-  async function toggle() {
+  async function apply(next: boolean) {
     try {
-      await setArchived.mutateAsync(!archived);
-      toast.success(archived ? "Restored" : "Archived");
+      await setArchived.mutateAsync(next);
+      toast.success(next ? "Archived" : "Restored");
     } catch (failure) {
       toast.error(firstIssue(failure) ?? "Could not update the organization.");
     }
@@ -155,7 +156,26 @@ function RowActions({ ref_, archived }: { ref_: string; archived: boolean }) {
         }
       />
       <MenuContent>
-        <MenuItem onClick={toggle}>
+        <MenuItem
+          {...(archived ? {} : { tone: "danger" as const })}
+          onClick={() => {
+            // Restoring only ever adds capability, so it just happens.
+            // Archiving stops every agent in the tenant from being hired,
+            // edited or run, which is worth a sentence and a deliberate click.
+            if (archived) {
+              void apply(false);
+              return;
+            }
+            void confirm({
+              title: "Archive this organization?",
+              description:
+                "Its agents can no longer be hired, edited or run, and nothing new can be started here. Everything is kept, and restoring puts it all back.",
+              confirmLabel: "Archive organization",
+              tone: "danger",
+              onConfirm: () => apply(true),
+            });
+          }}
+        >
           {archived ? <RotateCcw className="size-3.5" /> : <Archive className="size-3.5" />}
           {archived ? "Restore organization" : "Archive organization"}
         </MenuItem>
