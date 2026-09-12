@@ -3,7 +3,7 @@
 
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
-import { Activity, Building2, Bot, Library, ListChecks, Moon, Sun } from "lucide-react";
+import { Activity, Building2, Bot, Library, ListChecks, Moon, Settings, Sun } from "lucide-react";
 import { applyTheme, readTheme, type Theme } from "@/lib/theme";
 import { OrganizationSwitcher } from "@/components/organization-switcher";
 import { useCurrentOrganization } from "@/features/organizations/current-organization";
@@ -152,6 +152,23 @@ export function AppShell({ children }: { children: ReactNode }) {
               {label}
             </span>
           ))}
+
+          {/* Renaming an organization, or archiving it, was only reachable by
+              going back out to the list and clicking in again — a round trip
+              out of the thing you were already inside. `exact` because every
+              section below is a path prefix of this one. */}
+          {org ? (
+            <Link
+              to="/organizations/$ref"
+              params={{ ref: org }}
+              activeOptions={{ exact: true }}
+              className={cn(navLink, "md:mt-auto")}
+              activeProps={{ className: navActive }}
+            >
+              <Settings className="size-3.5" />
+              Settings
+            </Link>
+          ) : null}
         </nav>
       </aside>
 
