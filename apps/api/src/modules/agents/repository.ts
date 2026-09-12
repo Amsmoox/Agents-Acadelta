@@ -68,6 +68,7 @@ function toAgent(row: AgentRow): Agent {
     errorReason: row.errorReason,
     permissions: row.permissions,
     budgetMonthlyCents: row.budgetMonthlyCents,
+    spentMonthlyCents: row.spentMonthlyCents,
     lastHeartbeatAt: row.lastHeartbeatAt ? row.lastHeartbeatAt.toISOString() : null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

@@ -138,6 +138,7 @@ export const agentSchema = z.object({
   errorReason: z.string().nullable(),
   permissions: agentPermissionsSchema,
   budgetMonthlyCents: z.number().int(),
+  spentMonthlyCents: z.number().int(),
   lastHeartbeatAt: z.iso.datetime().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
