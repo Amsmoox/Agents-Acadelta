@@ -12,6 +12,7 @@ import { registerHealthRoutes } from "./routes/health.js";
 import { registerOrganizationRoutes } from "./modules/organizations/routes.js";
 import { registerAgentRoutes } from "./modules/agents/routes.js";
 import { registerAdapterRoutes } from "./modules/adapters/routes.js";
+import { registerKnowledgeRoutes } from "./modules/skills/routes.js";
 import { registerErrorHandler } from "./error-handler.js";
 
 export type AppContext = {
@@ -49,6 +50,7 @@ export async function buildApp(env: Env): Promise<AppContext> {
   await app.register(registerOrganizationRoutes);
   await app.register(registerAgentRoutes);
   await app.register(registerAdapterRoutes);
+  await app.register(registerKnowledgeRoutes);
 
   return {
     app,

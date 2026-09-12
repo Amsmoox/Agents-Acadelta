@@ -27,6 +27,7 @@ import {
   type UpdateAgentInput,
 } from "@agentco/shared";
 import { adapterConfigValidator, isKnownAdapter } from "@agentco/adapters";
+import { createInstructionRepository } from "./instructions.js";
 
 const UNIQUE_VIOLATION = "23505";
 const MAX_SLUG_ATTEMPTS = 6;
@@ -100,6 +101,8 @@ function changedConfigKeys(before: ConfigSnapshot, after: ConfigSnapshot): strin
 }
 
 export function createAgentRepository(db: Database) {
+  const instructions = createInstructionRepository(db);
+
   /** Every read is organization-scoped; no query may span two tenants. */
   async function findRow(organizationId: string, ref: string): Promise<AgentRow | null> {
     const match = UUID_RE.test(ref)
@@ -204,9 +207,16 @@ export function createAgentRepository(db: Database) {
       assertAdapterConfigValid(input.adapterType, input.adapterConfig);
       await assertManagerValid(organizationId, null, input.reportsTo ?? null);
 
+      // A hired agent always starts with an identity to read; an agent with no
+      // instructions at all has nothing to be.
+      const withInstructions = async (row: AgentRow) => {
+        await instructions.seed(organizationId, row.id, row.name, row.role);
+        return toAgent(row);
+      };
+
       if (input.slug) {
         try {
-          return toAgent(await insertOnce({ organizationId, slug: input.slug, input }));
+          return await withInstructions(await insertOnce({ organizationId, slug: input.slug, input }));
         } catch (error) {
           if (isUniqueViolation(error)) throw new AppError("AGENT_SLUG_TAKEN", { slug: input.slug });
           throw error;
@@ -222,7 +232,7 @@ export function createAgentRepository(db: Database) {
         const suffix = attempt === 0 ? "" : `-${attempt + 1}`;
         const slug = `${base.slice(0, 63 - suffix.length)}${suffix}`;
         try {
-          return toAgent(await insertOnce({ organizationId, slug, input }));
+          return await withInstructions(await insertOnce({ organizationId, slug, input }));
         } catch (error) {
           if (isUniqueViolation(error)) continue;
           throw error;
