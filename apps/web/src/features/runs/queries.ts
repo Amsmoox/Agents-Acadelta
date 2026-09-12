@@ -119,13 +119,15 @@ export function useCancelRun(org: string) {
  * Follows a run's transcript as it is produced.
  *
  * Server-sent events rather than polling, and each line carries its sequence
- * number so a dropped connection resumes from where it stopped instead of
+ * number, so a dropped connection resumes from where it stopped instead of
  * replaying the run or losing its middle.
  */
 export function useRunTranscript(org: string, runId: string | null) {
   const [lines, setLines] = useState<TranscriptLine[]>([]);
   const [done, setDone] = useState<{ status: string; exitCode: number | null } | null>(null);
+  const [connected, setConnected] = useState(true);
   const lastSeq = useRef(0);
+  const seen = useRef<Set<number>>(new Set());
 
   useEffect(() => {
     if (!runId) {
@@ -136,39 +138,57 @@ export function useRunTranscript(org: string, runId: string | null) {
 
     setLines([]);
     setDone(null);
+    setConnected(true);
     lastSeq.current = 0;
+    seen.current = new Set();
 
-    const source = new EventSource(
-      `/api/organizations/${org}/runs/${runId}/stream?from=0`,
-    );
+    // No `?from=`. The browser sends `Last-Event-ID` by itself when it
+    // reconnects and it knows exactly where this reader got to; a `from` in the
+    // URL is frozen at whatever the view was opened with, and pinning it to 0
+    // meant every reconnect replayed the whole run into an existing view.
+    const source = new EventSource(`/api/organizations/${org}/runs/${runId}/stream`);
 
     const append = (event: MessageEvent, kind: string) => {
       const seq = Number(event.lastEventId) || lastSeq.current + 1;
-      lastSeq.current = seq;
+      // A reconnect can overlap by a line or two. Sequence numbers are the
+      // whole point of having them.
+      if (seen.current.has(seq)) return;
+      seen.current.add(seq);
+      lastSeq.current = Math.max(lastSeq.current, seq);
+
       let text: string;
       try {
         const payload = JSON.parse(event.data) as Record<string, unknown>;
-        text =
-          typeof payload["text"] === "string"
-            ? payload["text"]
-            : JSON.stringify(payload);
+        text = typeof payload["text"] === "string" ? payload["text"] : JSON.stringify(payload);
       } catch {
         text = event.data;
       }
-      setLines((current) => [...current, { seq, kind, text }]);
+      setLines((current) =>
+        [...current, { seq, kind, text }].sort((a, b) => a.seq - b.seq),
+      );
     };
 
     for (const kind of ["log", "stderr", "json", "error"]) {
       source.addEventListener(kind, (event) => append(event as MessageEvent, kind));
     }
+
+    source.addEventListener("open", () => setConnected(true));
+
     source.addEventListener("done", (event) => {
       setDone(JSON.parse((event as MessageEvent).data));
+      // The only place this stream is closed on purpose. Everything else is a
+      // blip, and EventSource is better at recovering from those than we are.
       source.close();
     });
-    source.onerror = () => source.close();
+
+    // Deliberately not `source.close()`. Closing here meant one dropped packet
+    // ended the transcript for good, silently — the agent kept working and the
+    // screen simply stopped, which reads exactly like a hung agent. Leaving it
+    // open lets EventSource reconnect on its own, with `Last-Event-ID`.
+    source.onerror = () => setConnected(false);
 
     return () => source.close();
   }, [org, runId]);
 
-  return { lines, done };
+  return { lines, done, connected };
 }

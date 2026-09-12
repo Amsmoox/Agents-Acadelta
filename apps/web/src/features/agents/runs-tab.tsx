@@ -69,7 +69,7 @@ export function RunsTab({ org, agent }: { org: string; agent: string }) {
         <div className="flex items-center justify-between gap-2 border-t border-line bg-sunken px-4 py-2.5">
           <span className="text-2xs text-faint">
             {live
-              ? "This agent is already working. A new request joins the one in flight."
+              ? "This agent is working. Your request is queued and runs after this one."
               : "Leave it empty to let the agent pick up where it left off."}
           </span>
           <Button
@@ -127,7 +127,21 @@ export function RunsTab({ org, agent }: { org: string; agent: string }) {
           </List>
 
           {shownRun ? (
-            <Transcript org={org} run={shownRun} onCancel={() => cancel.mutate(shownRun.id)} />
+            <Transcript
+              org={org}
+              run={shownRun}
+              stopping={cancel.isPending}
+              onCancel={async () => {
+                try {
+                  await cancel.mutateAsync(shownRun.id);
+                  toast.success("Stopping");
+                } catch (failure) {
+                  // Most often the run finished a moment ago. Saying so beats a
+                  // button that does nothing.
+                  toast.error(firstIssue(failure) ?? "Could not stop this run.");
+                }
+              }}
+            />
           ) : null}
         </div>
       ) : null}
@@ -138,13 +152,15 @@ export function RunsTab({ org, agent }: { org: string; agent: string }) {
 function Transcript({
   org,
   run,
+  stopping,
   onCancel,
 }: {
   org: string;
   run: Run;
+  stopping: boolean;
   onCancel: () => void;
 }) {
-  const { lines, done } = useRunTranscript(org, run.id);
+  const { lines, done, connected } = useRunTranscript(org, run.id);
   const bottom = useRef<HTMLDivElement>(null);
   const [follow, setFollow] = useState(true);
 
@@ -175,12 +191,19 @@ function Transcript({
           ) : null}
         </div>
 
-        {isLive(run) ? (
-          <Button variant="ghost" size="sm" onClick={onCancel}>
-            <Square />
-            Stop
-          </Button>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {/* Silence used to be ambiguous: a reconnecting stream and a thinking
+              agent looked identical. Only one of them needs explaining. */}
+          {!connected && !done ? (
+            <span className="text-2xs text-attention">Reconnecting…</span>
+          ) : null}
+          {isLive(run) ? (
+            <Button variant="ghost" size="sm" disabled={stopping} onClick={onCancel}>
+              {stopping ? <Spinner /> : <Square />}
+              Stop
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <div
