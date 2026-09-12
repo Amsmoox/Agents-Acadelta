@@ -3,6 +3,8 @@
 
 import { Outlet, createRootRouteWithContext } from "@tanstack/react-router";
 import type { QueryClient } from "@tanstack/react-query";
+import { Toaster } from "sonner";
+import { AppShell } from "@/components/app-shell";
 
 export type RouterContext = {
   queryClient: QueryClient;
@@ -14,8 +16,15 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 
 function RootLayout() {
   return (
-    <div className="min-h-dvh bg-background text-foreground">
+    <AppShell>
       <Outlet />
-    </div>
+      <Toaster
+        position="bottom-right"
+        toastOptions={{
+          className:
+            "!bg-surface !border-line !text-ink !text-xs !rounded-[var(--radius-md)] !font-sans",
+        }}
+      />
+    </AppShell>
   );
 }

@@ -10,33 +10,53 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as OrganizationsIndexRouteImport } from './routes/organizations/index'
+import { Route as OrganizationsRefRouteImport } from './routes/organizations/$ref'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OrganizationsIndexRoute = OrganizationsIndexRouteImport.update({
+  id: '/organizations/',
+  path: '/organizations/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrganizationsRefRoute = OrganizationsRefRouteImport.update({
+  id: '/organizations/$ref',
+  path: '/organizations/$ref',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/organizations/$ref': typeof OrganizationsRefRoute
+  '/organizations/': typeof OrganizationsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/organizations/$ref': typeof OrganizationsRefRoute
+  '/organizations': typeof OrganizationsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/organizations/$ref': typeof OrganizationsRefRoute
+  '/organizations/': typeof OrganizationsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/organizations/$ref' | '/organizations/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/organizations/$ref' | '/organizations'
+  id: '__root__' | '/' | '/organizations/$ref' | '/organizations/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  OrganizationsRefRoute: typeof OrganizationsRefRoute
+  OrganizationsIndexRoute: typeof OrganizationsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +68,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/organizations/': {
+      id: '/organizations/'
+      path: '/organizations'
+      fullPath: '/organizations/'
+      preLoaderRoute: typeof OrganizationsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/organizations/$ref': {
+      id: '/organizations/$ref'
+      path: '/organizations/$ref'
+      fullPath: '/organizations/$ref'
+      preLoaderRoute: typeof OrganizationsRefRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  OrganizationsRefRoute: OrganizationsRefRoute,
+  OrganizationsIndexRoute: OrganizationsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
