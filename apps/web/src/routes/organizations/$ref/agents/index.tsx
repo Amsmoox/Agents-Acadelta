@@ -25,7 +25,7 @@ export const Route = createFileRoute("/organizations/$ref/agents/")({
   component: AgentsPage,
 });
 
-type View = "list" | "org";
+type View = "list" | "org" | "terminated";
 
 function AgentsPage() {
   // The organization comes from the URL, which is what makes this page
@@ -34,6 +34,10 @@ function AgentsPage() {
   const { current, isPending: orgPending, unavailable } = useCurrentOrganization();
   const [view, setView] = useState<View>("list");
   const agents = useAgents(org);
+  // Terminating an agent used to remove it from every screen in the product,
+  // with no way back to its history, its runs or its instructions. It is kept
+  // in the database precisely so it can still be read.
+  const terminated = useAgents(org, "terminated");
   const tree = useOrgTree(org);
   const adapters = useAdapters();
   const adapterLabel = (type: string) =>
@@ -79,6 +83,8 @@ function AgentsPage() {
   }
 
   const roster = agents.data ?? [];
+  const retired = terminated.data ?? [];
+  const shown = view === "terminated" ? retired : roster;
 
   return (
     <Page>
@@ -100,8 +106,13 @@ function AgentsPage() {
             value={view}
             onChange={setView}
             options={[
-              { value: "list", label: "List", count: roster.length },
-              { value: "org", label: "Org chart" },
+              { value: "list" as View, label: "List", count: roster.length },
+              { value: "org" as View, label: "Org chart" },
+              // Offered only when there is something to see; an always-visible
+              // empty archive is just a tab that never rewards a click.
+              ...(retired.length > 0
+                ? [{ value: "terminated" as View, label: "Terminated", count: retired.length }]
+                : []),
             ]}
           />
         </div>
@@ -137,9 +148,9 @@ function AgentsPage() {
         </List>
       ) : null}
 
-      {roster.length > 0 && view === "list" ? (
+      {shown.length > 0 && view !== "org" ? (
         <List>
-          {roster.map((agent) => (
+          {shown.map((agent) => (
             <AgentRow key={agent.id} agent={agent} adapterLabel={adapterLabel(agent.adapterType)} org={org} />
           ))}
         </List>

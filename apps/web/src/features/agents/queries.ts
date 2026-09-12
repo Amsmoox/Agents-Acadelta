@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   Agent,
   AgentEligibility,
+  AgentStatus,
   CreateAgentInput,
   OrgChainHealth,
   OrgTreeNode,
@@ -60,11 +61,20 @@ export function useAdapters() {
   });
 }
 
-export function useAgents(org: string | undefined) {
+/**
+ * The roster. Without a status this is everyone still employed — the API
+ * excludes terminated agents structurally rather than by filter — and with one
+ * it is exactly that group, which is the only way to see terminated agents at
+ * all.
+ */
+export function useAgents(org: string | undefined, status?: AgentStatus) {
   return useQuery({
-    queryKey: agentKeys.list(org ?? ""),
+    queryKey: [...agentKeys.list(org ?? ""), status ?? "current"] as const,
     enabled: Boolean(org),
-    queryFn: () => request<{ data: Agent[] }>(`/organizations/${org}/agents?limit=200`),
+    queryFn: () =>
+      request<{ data: Agent[] }>(
+        `/organizations/${org}/agents?limit=200${status ? `&status=${status}` : ""}`,
+      ),
     select: (result) => result.data,
   });
 }
