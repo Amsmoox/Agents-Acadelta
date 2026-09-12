@@ -3,12 +3,21 @@
 
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
-import { ArrowLeft, Trash2 } from "lucide-react";
-import { readSkillDocument } from "@agentco/shared";
+import { toast, useConfirm } from "@/components/ui";
+import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
+import { readSkillDocument, type Skill } from "@agentco/shared";
 import { Page, PageHeader } from "@/components/ui/page";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/input";
+import { Input, Textarea } from "@/components/ui/input";
+import { Field } from "@/components/ui/field";
+import {
+  DialogBody,
+  DialogClose,
+  DialogFooter,
+  DialogPanel,
+  DialogRoot,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Badge, Tag } from "@/components/ui/status";
 import { ErrorState, Skeleton, Spinner } from "@/components/ui/feedback";
 import { useDeleteSkill, useSkill, useUpdateSkill } from "@/features/skills/queries";
@@ -18,12 +27,98 @@ export const Route = createFileRoute("/organizations/$ref/skills/$skillRef")({
   component: SkillPage,
 });
 
+/**
+ * The document's header names the skill for agents; this names it for people.
+ * Both exist because an agent matches on a slug while an operator scans a list,
+ * and forcing one string to do both jobs makes it bad at one of them.
+ */
+function EditSkillDialog({ org, skill }: { org: string; skill: Skill }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(skill.name);
+  const [description, setDescription] = useState(skill.description ?? "");
+  const [error, setError] = useState<string>();
+  const update = useUpdateSkill(org, skill.slug);
+
+  useEffect(() => {
+    if (!open) return;
+    setName(skill.name);
+    setDescription(skill.description ?? "");
+    setError(undefined);
+  }, [open, skill]);
+
+  return (
+    <DialogRoot open={open} onOpenChange={setOpen}>
+      <DialogTrigger
+        render={
+          <Button variant="secondary" size="md">
+            <Pencil />
+            Edit details
+          </Button>
+        }
+      />
+      <DialogPanel title="Edit skill" description="How this skill appears in the library.">
+        <form
+          onSubmit={async (event) => {
+            event.preventDefault();
+            setError(undefined);
+            try {
+              await update.mutateAsync({
+                name: name.trim(),
+                description: description.trim() === "" ? null : description.trim(),
+              });
+              toast.success("Saved");
+              setOpen(false);
+            } catch (failure) {
+              setError(firstIssue(failure) ?? "Could not save.");
+            }
+          }}
+        >
+          <DialogBody className="flex flex-col gap-4">
+            <Field label="Name" error={error}>
+              {(props) => (
+                <Input
+                  {...props}
+                  value={name}
+                  maxLength={120}
+                  onChange={(event) => setName(event.target.value)}
+                />
+              )}
+            </Field>
+            <Field
+              label="Description"
+              optional
+              hint="Editing the document header overwrites this with what the header says."
+            >
+              {(props) => (
+                <Input
+                  {...props}
+                  value={description}
+                  maxLength={500}
+                  onChange={(event) => setDescription(event.target.value)}
+                />
+              )}
+            </Field>
+          </DialogBody>
+          <DialogFooter>
+            <DialogClose render={<Button variant="ghost" size="md" type="button">Cancel</Button>} />
+            <Button variant="primary" size="md" type="submit" disabled={!name.trim() || update.isPending}>
+              {update.isPending ? <Spinner className="border-t-inverse" /> : null}
+              Save
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogPanel>
+    </DialogRoot>
+  );
+}
+
 function SkillPage() {
   const { ref: org, skillRef } = Route.useParams();
   const query = useSkill(org, skillRef);
   const update = useUpdateSkill(org, skillRef);
   const remove = useDeleteSkill(org);
   const navigate = useNavigate();
+  const confirm = useConfirm();
 
   const [draft, setDraft] = useState<string | null>(null);
   const [error, setError] = useState<string>();
@@ -97,23 +192,34 @@ function SkillPage() {
           </>
         }
         actions={
-          <Button
+          <>
+            <EditSkillDialog org={org} skill={skill} />
+            <Button
             variant="secondary"
             size="icon"
             aria-label="Delete skill"
-            onClick={async () => {
-              if (!window.confirm(`Delete ${skill.name}? Agents using it will lose it.`)) return;
-              try {
-                await remove.mutateAsync(skill.slug);
-                toast.success("Deleted");
-                await navigate({ to: "/organizations/$ref/skills", params: { ref: org } });
-              } catch (failure) {
-                toast.error(firstIssue(failure) ?? "Could not delete.");
-              }
-            }}
-          >
-            <Trash2 />
-          </Button>
+            onClick={() =>
+              void confirm({
+                title: `Delete ${skill.name}?`,
+                description:
+                  "Every agent that has this skill enabled loses it, and the document cannot be recovered.",
+                confirmLabel: "Delete skill",
+                tone: "danger",
+                onConfirm: async () => {
+                  try {
+                    await remove.mutateAsync(skill.slug);
+                    toast.success("Deleted");
+                    await navigate({ to: "/organizations/$ref/skills", params: { ref: org } });
+                  } catch (failure) {
+                    toast.error(firstIssue(failure) ?? "Could not delete.");
+                  }
+                },
+              })
+            }
+            >
+              <Trash2 />
+            </Button>
+          </>
         }
       />
 

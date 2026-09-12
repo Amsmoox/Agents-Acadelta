@@ -4,6 +4,8 @@
 import type { FieldSpec } from "@agentco/adapters";
 import { Field } from "@/components/ui/field";
 import { Input, Textarea } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { CheckboxField } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 
 /**
@@ -42,35 +44,22 @@ function Control({
   switch (field.type) {
     case "boolean":
       return (
-        <label className="flex items-center gap-2 text-xs text-ink">
-          <input
-            {...props}
-            type="checkbox"
-            checked={value === true}
-            onChange={(event) => onChange(event.target.checked)}
-            className="size-3.5 rounded-[2px] border-line accent-[var(--ink)]"
-          />
-          {field.help ?? field.label}
-        </label>
+        <CheckboxField
+          {...props}
+          checked={value === true}
+          onChange={(event) => onChange(event.target.checked)}
+          label={field.help ?? field.label}
+        />
       );
 
     case "select":
       return (
-        <select
+        <Select
           {...props}
           value={typeof value === "string" ? value : ""}
           onChange={(event) => onChange(event.target.value)}
-          className={cn(
-            "h-8 w-full max-w-96 rounded-[var(--radius-md)] border border-line bg-surface",
-            "px-2 text-sm text-ink hover:border-line-strong focus:border-ink focus:outline-none",
-          )}
-        >
-          {field.options?.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+          options={field.options ?? []}
+        />
       );
 
     case "number":

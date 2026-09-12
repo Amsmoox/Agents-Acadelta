@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: 2026 Mharrech Ayoub <mharrech.ayoub@gmail.com>
 
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast, useConfirm } from "@/components/ui";
 import { FileText, Plus, Trash2 } from "lucide-react";
 import { INSTRUCTIONS_ENTRY_FILE } from "@agentco/shared";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,7 @@ export function InstructionsTab({ org, agent }: { org: string; agent: string }) 
   const files = useInstructions(org, agent);
   const write = useWriteInstructionFile(org, agent);
   const remove = useDeleteInstructionFile(org, agent);
+  const confirm = useConfirm();
 
   const [selected, setSelected] = useState(INSTRUCTIONS_ENTRY_FILE);
   const [draft, setDraft] = useState<string | null>(null);
@@ -100,16 +101,24 @@ export function InstructionsTab({ org, agent }: { org: string; agent: string }) 
               variant="ghost"
               size="sm"
               aria-label={`Delete ${current.path}`}
-              onClick={async () => {
-                if (!window.confirm(`Delete ${current.path}?`)) return;
-                try {
-                  await remove.mutateAsync(current.path);
-                  setSelected(INSTRUCTIONS_ENTRY_FILE);
-                  toast.success("Deleted");
-                } catch (failure) {
-                  toast.error(firstIssue(failure) ?? "Could not delete.");
-                }
-              }}
+              onClick={() =>
+                void confirm({
+                  title: `Delete ${current.path}?`,
+                  description:
+                    "Anything in AGENTS.md that refers to this file will point at nothing.",
+                  confirmLabel: "Delete file",
+                  tone: "danger",
+                  onConfirm: async () => {
+                    try {
+                      await remove.mutateAsync(current.path);
+                      setSelected(INSTRUCTIONS_ENTRY_FILE);
+                      toast.success("Deleted");
+                    } catch (failure) {
+                      toast.error(firstIssue(failure) ?? "Could not delete.");
+                    }
+                  },
+                })
+              }
             >
               <Trash2 />
             </Button>

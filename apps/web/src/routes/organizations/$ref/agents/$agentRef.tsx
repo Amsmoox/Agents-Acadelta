@@ -3,12 +3,14 @@
 
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
-import { toast } from "sonner";
+import { toast, useConfirm } from "@/components/ui";
 import { ArrowLeft, Ban, MoreHorizontal, Pause, Play, RotateCcw } from "lucide-react";
 import { AGENT_ROLE_LABELS } from "@agentco/shared";
 import { Page, PageHeader } from "@/components/ui/page";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge, Tag } from "@/components/ui/status";
+import { Callout } from "@/components/ui/callout";
+import { Card, DescriptionList, DescriptionRow } from "@/components/ui/card";
 import { ErrorState, Skeleton, Spinner } from "@/components/ui/feedback";
 import { Segmented } from "@/components/ui/segmented";
 import { List, ListRow } from "@/components/ui/list";
@@ -18,6 +20,7 @@ import { AdapterIcon } from "@/components/adapter-icon";
 import { InstructionsTab } from "@/features/agents/instructions-tab";
 import { SkillsTab } from "@/features/agents/skills-tab";
 import { RunsTab } from "@/features/agents/runs-tab";
+import { EditAgentDialog } from "@/features/agents/edit-agent-dialog";
 import {
   useAdapters,
   useAgent,
@@ -27,7 +30,7 @@ import {
   useUpdateAgent,
   type AgentDetail,
 } from "@/features/agents/queries";
-import { STATUS_LABEL, STATUS_TONE, chainProblem } from "@/features/agents/status";
+import { STATUS_LABEL, STATUS_TONE, chainProblem, pauseExplanation } from "@/features/agents/status";
 import { ApiError, firstIssue } from "@/lib/api";
 import { fullDate, timeAgo } from "@/lib/format";
 
@@ -47,6 +50,16 @@ function AgentDetailPage() {
   const { tab = "overview" } = Route.useSearch();
   const navigate = useNavigate();
   const query = useAgent(org, ref);
+  const resumeAgent = useAgentAction(org, ref);
+
+  const resume = async () => {
+    try {
+      await resumeAgent.mutateAsync({ action: "resume" });
+      toast.success("Resumed");
+    } catch (failure) {
+      toast.error(firstIssue(failure) ?? "Could not resume.");
+    }
+  };
 
   if (query.isPending) {
     return (
@@ -126,14 +139,34 @@ function AgentDetailPage() {
             {agent.manager ? <span className="text-faint">reports to {agent.manager.name}</span> : null}
           </>
         }
-        actions={<AgentActions org={org} agent={agent} />}
+        actions={
+          <>
+            <EditAgentDialog org={org} agent={agent} />
+            <AgentActions org={org} agent={agent} />
+          </>
+        }
       />
 
-      {agent.status === "error" && agent.errorReason ? (
-        <Notice tone="danger" text={agent.errorReason} />
+      {agent.status === "paused" ? (
+        <Callout
+          tone="attention"
+          className="mb-4"
+          action={
+            <Button variant="secondary" size="sm" onClick={() => void resume()}>
+              <Play />
+              Resume
+            </Button>
+          }
+        >
+          {pauseExplanation(agent.pauseReason)}
+        </Callout>
       ) : null}
-      {problem ? <Notice tone="danger" text={problem} /> : null}
-      {warning ? <Notice tone="attention" text={warning} /> : null}
+
+      {agent.status === "error" && agent.errorReason ? (
+        <Callout tone="danger" className="mb-4">{agent.errorReason}</Callout>
+      ) : null}
+      {problem ? <Callout tone="danger" className="mb-4">{problem}</Callout> : null}
+      {warning ? <Callout tone="attention" className="mb-4">{warning}</Callout> : null}
 
       <div className="pb-4">
         <Segmented
@@ -169,22 +202,9 @@ function AgentDetailPage() {
   );
 }
 
-function Notice({ tone, text }: { tone: "danger" | "attention"; text: string }) {
-  return (
-    <div
-      className={`mb-4 rounded-[var(--radius-md)] border px-3 py-2.5 text-xs ${
-        tone === "danger"
-          ? "border-danger/30 bg-danger-soft text-danger"
-          : "border-attention/30 bg-attention-soft text-attention"
-      }`}
-    >
-      {text}
-    </div>
-  );
-}
-
 function AgentActions({ org, agent }: { org: string; agent: AgentDetail }) {
   const action = useAgentAction(org, agent.slug);
+  const confirm = useConfirm();
 
   const run = async (name: string, label: string, body?: Record<string, unknown>) => {
     try {
@@ -233,16 +253,17 @@ function AgentActions({ org, agent }: { org: string; agent: AgentDetail }) {
           {agent.status !== "terminated" ? (
             <MenuItem
               tone="danger"
-              onClick={() => {
-                // Termination cannot be undone, so it asks — and says why.
-                if (
-                  window.confirm(
-                    `Terminate ${agent.name}? This cannot be undone. Its history is kept, but it can never run again.`,
-                  )
-                ) {
-                  void run("terminate", "Terminated");
-                }
-              }}
+              // Termination cannot be undone, so it asks — and says what it costs.
+              onClick={() =>
+                void confirm({
+                  title: `Terminate ${agent.name}?`,
+                  description:
+                    "This cannot be undone. Its history and runs are kept, but it can never be assigned work or run again.",
+                  confirmLabel: "Terminate agent",
+                  tone: "danger",
+                  onConfirm: () => run("terminate", "Terminated"),
+                })
+              }
             >
               <Ban className="size-3.5" />
               Terminate agent
@@ -254,42 +275,58 @@ function AgentActions({ org, agent }: { org: string; agent: AgentDetail }) {
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-[var(--radius-md)] border border-line bg-surface">
-      <h2 className="border-b border-line px-4 py-2 text-2xs font-medium text-faint">{title}</h2>
-      <div className="px-4 py-4">{children}</div>
-    </section>
-  );
-}
-
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex items-baseline justify-between gap-4 py-1.5">
-      <span className="text-xs text-muted">{label}</span>
-      <span className="min-w-0 truncate text-xs text-ink">{value}</span>
-    </div>
-  );
-}
-
 function Overview({ agent }: { org: string; agent: AgentDetail }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <Card title="Identity">
-        <Row label="Role" value={AGENT_ROLE_LABELS[agent.role]} />
-        <Row label="Title" value={agent.title ?? "—"} />
-        <Row label="Reports to" value={agent.manager?.name ?? "No manager"} />
-        <Row label="Can be assigned work" value={agent.eligibility.assignable ? "Yes" : "No"} />
+        <DescriptionList>
+          <DescriptionRow label="Role" value={AGENT_ROLE_LABELS[agent.role]} />
+          <DescriptionRow label="Title" value={agent.title ?? "Not set"} />
+          <DescriptionRow label="Reports to" value={agent.manager?.name ?? "No manager"} />
+          <DescriptionRow
+            label="Can be assigned work"
+            value={agent.eligibility.assignable ? "Yes" : "No"}
+          />
+        </DescriptionList>
       </Card>
 
       <Card title="Harness">
-        <Row label="Type" value={<span className="machine">{agent.adapterType}</span>} />
-        <Row label="Model" value={<span className="machine">{String(agent.adapterConfig["model"] ?? "default")}</span>} />
-        <Row
-          label="Last heartbeat"
-          value={agent.lastHeartbeatAt ? timeAgo(agent.lastHeartbeatAt) : "Never run"}
-        />
-        <Row label="Created" value={<span title={fullDate(agent.createdAt)}>{timeAgo(agent.createdAt)}</span>} />
+        <DescriptionList>
+          <DescriptionRow label="Type" value={<span className="machine">{agent.adapterType}</span>} />
+          <DescriptionRow
+            label="Model"
+            value={
+              <span className="machine">{String(agent.adapterConfig["model"] ?? "default")}</span>
+            }
+          />
+          <DescriptionRow
+            label="Last heartbeat"
+            value={agent.lastHeartbeatAt ? timeAgo(agent.lastHeartbeatAt) : "Never run"}
+          />
+          <DescriptionRow
+            label="Created"
+            value={<span title={fullDate(agent.createdAt)}>{timeAgo(agent.createdAt)}</span>}
+          />
+        </DescriptionList>
+      </Card>
+
+      <Card title="Budget">
+        <DescriptionList>
+          <DescriptionRow
+            label="Monthly limit"
+            value={
+              agent.budgetMonthlyCents > 0 ? (
+                <span className="machine">${(agent.budgetMonthlyCents / 100).toFixed(2)}</span>
+              ) : (
+                "No limit"
+              )
+            }
+          />
+          <DescriptionRow
+            label="Spent this month"
+            value={<span className="machine">${(agent.spentMonthlyCents / 100).toFixed(2)}</span>}
+          />
+        </DescriptionList>
       </Card>
 
       <Card title="Capabilities">
@@ -375,9 +412,11 @@ function Governance({ org, agent }: { org: string; agent: AgentDetail }) {
   return (
     <div className="flex flex-col gap-4">
       <Card title="Permissions">
-        <Row label="Can hire agents" value={agent.permissions["canCreateAgents"] ? "Yes" : "No"} />
-        <Row label="Can write skills" value={agent.permissions["canCreateSkills"] ? "Yes" : "No"} />
-        <Row label="Can assign work" value={agent.permissions["canAssignTasks"] ? "Yes" : "No"} />
+        <DescriptionList>
+        <DescriptionRow label="Can hire agents" value={agent.permissions["canCreateAgents"] ? "Yes" : "No"} />
+        <DescriptionRow label="Can write skills" value={agent.permissions["canCreateSkills"] ? "Yes" : "No"} />
+        <DescriptionRow label="Can assign work" value={agent.permissions["canAssignTasks"] ? "Yes" : "No"} />
+        </DescriptionList>
       </Card>
 
       <div>

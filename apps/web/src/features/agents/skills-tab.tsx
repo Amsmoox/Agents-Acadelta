@@ -9,6 +9,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { List } from "@/components/ui/list";
 import { EmptyState, Skeleton, Spinner } from "@/components/ui/feedback";
 import { Tag } from "@/components/ui/status";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   useAgentSkills,
   useSetAgentSkills,
@@ -90,12 +91,7 @@ export function SkillsTab({ org, agent }: { org: string; agent: string }) {
               key={skill.id}
               className="flex cursor-pointer items-start gap-3 border-b border-line px-3 py-2.5 last:border-b-0 hover:bg-sunken"
             >
-              <input
-                type="checkbox"
-                checked={on}
-                onChange={() => toggle(skill.id)}
-                className="mt-0.5 size-3.5 shrink-0 rounded-[2px] border-line accent-[var(--ink)]"
-              />
+              <Checkbox checked={on} onChange={() => toggle(skill.id)} className="mt-0.5" />
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-2">
                   <span className="truncate text-sm text-ink">{skill.name}</span>

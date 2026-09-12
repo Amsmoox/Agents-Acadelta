@@ -5,6 +5,8 @@ import { Outlet, createRootRouteWithContext } from "@tanstack/react-router";
 import type { QueryClient } from "@tanstack/react-query";
 import { Toaster } from "sonner";
 import { AppShell } from "@/components/app-shell";
+import { ConfirmProvider } from "@/components/ui/confirm";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { CurrentOrganizationProvider } from "@/features/organizations/current-organization";
 
 export type RouterContext = {
@@ -18,6 +20,8 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 function RootLayout() {
   return (
     <CurrentOrganizationProvider>
+      <TooltipProvider>
+      <ConfirmProvider>
       <AppShell>
         <Outlet />
         <Toaster
@@ -28,6 +32,8 @@ function RootLayout() {
           }}
         />
       </AppShell>
+      </ConfirmProvider>
+      </TooltipProvider>
     </CurrentOrganizationProvider>
   );
 }

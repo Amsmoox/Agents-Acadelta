@@ -10,6 +10,7 @@ import { Page, PageHeader } from "@/components/ui/page";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
+import { Select } from "@/components/ui/select";
 import { ErrorState, Skeleton, Spinner } from "@/components/ui/feedback";
 import { AdapterConfigForm } from "@/components/adapter-config-form";
 import { AdapterIcon } from "@/components/adapter-icon";
@@ -159,18 +160,16 @@ function NewAgentPage() {
             <div className="flex flex-wrap gap-4">
               <Field label="Role" hint="Used to route delegation.">
                 {(props) => (
-                  <select
+                  <Select
                     {...props}
                     value={role}
                     onChange={(event) => setRole(event.target.value as AgentRole)}
-                    className="h-8 w-56 rounded-[var(--radius-md)] border border-line bg-surface px-2 text-sm text-ink focus:border-ink focus:outline-none"
-                  >
-                    {AGENT_ROLES.map((value) => (
-                      <option key={value} value={value}>
-                        {AGENT_ROLE_LABELS[value]}
-                      </option>
-                    ))}
-                  </select>
+                    className="w-56"
+                    options={AGENT_ROLES.map((value) => ({
+                      value,
+                      label: AGENT_ROLE_LABELS[value],
+                    }))}
+                  />
                 )}
               </Field>
 
@@ -189,19 +188,19 @@ function NewAgentPage() {
 
               <Field label="Reports to" optional hint="Leave empty to place at the top.">
                 {(props) => (
-                  <select
+                  <Select
                     {...props}
                     value={reportsTo}
                     onChange={(event) => setReportsTo(event.target.value)}
-                    className="h-8 w-56 rounded-[var(--radius-md)] border border-line bg-surface px-2 text-sm text-ink focus:border-ink focus:outline-none"
-                  >
-                    <option value="">No manager</option>
-                    {(existing.data ?? []).map((agent) => (
-                      <option key={agent.id} value={agent.id}>
-                        {agent.name}
-                      </option>
-                    ))}
-                  </select>
+                    className="w-56"
+                    options={[
+                      { value: "", label: "No manager" },
+                      ...(existing.data ?? []).map((candidate) => ({
+                        value: candidate.id,
+                        label: candidate.name,
+                      })),
+                    ]}
+                  />
                 )}
               </Field>
             </div>
