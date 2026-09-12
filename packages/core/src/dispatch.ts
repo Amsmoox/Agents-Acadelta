@@ -41,6 +41,17 @@ export type ClaimedRun = {
 /** A run reaped this many times stops being retried and waits for a person. */
 const POISON_PILL_LIMIT = 3;
 
+/**
+ * The first instant of the calendar month a moment falls in, in UTC.
+ *
+ * UTC rather than local time so that two runners in different time zones agree
+ * on when the month turned over, and a budget cannot be reset twice by moving
+ * a machine.
+ */
+export function startOfMonth(at: Date): Date {
+  return new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), 1));
+}
+
 export function createDispatchRepository(db: Database) {
   return {
     /**
@@ -139,10 +150,32 @@ export function createDispatchRepository(db: Database) {
         if (!agent) return skip("agent_missing");
         if (NON_INVOKABLE_STATUSES.includes(agent.status)) return skip(`agent_${agent.status}`);
 
+        // A monthly budget has to actually be monthly. `spent_monthly_cents`
+        // only ever accumulated, so the first month an agent reached its limit
+        // was the last month it ever ran. The reset happens here, inside the
+        // same locked transaction as the check below, because doing it on a
+        // timer would let a run start against a stale figure.
+        const period = startOfMonth(new Date());
+        let spent = agent.spentMonthlyCents;
+        if (!agent.budgetPeriodStart) {
+          // An agent that predates this column has a spend belonging to no
+          // recorded month. Adopt the current one WITHOUT clearing it: guessing
+          // in the agent's favour would hand a full fresh budget to every agent
+          // already over its limit, which is the one direction this must not
+          // get wrong.
+          await tx.update(agents).set({ budgetPeriodStart: period }).where(eq(agents.id, agent.id));
+        } else if (agent.budgetPeriodStart < period) {
+          spent = 0;
+          await tx
+            .update(agents)
+            .set({ spentMonthlyCents: 0, budgetPeriodStart: period })
+            .where(eq(agents.id, agent.id));
+        }
+
         // Zero means no limit. Any other value is a hard stop, and hitting it
         // pauses the agent rather than letting the next wakeup try again and
         // spend more.
-        if (agent.budgetMonthlyCents > 0 && agent.spentMonthlyCents >= agent.budgetMonthlyCents) {
+        if (agent.budgetMonthlyCents > 0 && spent >= agent.budgetMonthlyCents) {
           await tx
             .update(agents)
             .set({ status: "paused", pauseReason: "budget", pausedAt: new Date() })

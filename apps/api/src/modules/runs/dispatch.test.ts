@@ -5,7 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { agentRuns, agentWakeups, agents, createDatabase, type Database } from "@agentco/db";
 import { TEST_DATABASE_URL, databaseReachable, migrateTestDatabase, truncateAll } from "../../test/db.js";
-import { createDispatchRepository } from "@agentco/core";
+import { createDispatchRepository, startOfMonth } from "@agentco/core";
 
 const reachable = await databaseReachable();
 
@@ -169,6 +169,46 @@ describe.skipIf(!reachable)("dispatch", () => {
       await dispatch.requestWake(org, agent, reason("timer"));
 
       expect(await dispatch.claimNext("runner-1", 30)).not.toBeNull();
+    });
+
+    it("starts the spend again when the month turns over", async () => {
+      // `spent_monthly_cents` only ever accumulated, so the first month an
+      // agent reached its limit was the last month it ever ran: a "monthly"
+      // budget that was really a lifetime one.
+      await db
+        .update(agents)
+        .set({
+          budgetMonthlyCents: 500,
+          spentMonthlyCents: 500,
+          budgetPeriodStart: new Date(Date.UTC(2020, 0, 1)),
+        })
+        .where(eq(agents.id, agent));
+      await dispatch.requestWake(org, agent, reason("timer"));
+
+      expect(await dispatch.claimNext("runner-1", 30)).not.toBeNull();
+
+      const [row] = await db.select().from(agents).where(eq(agents.id, agent));
+      expect(row!.spentMonthlyCents).toBe(0);
+      expect(row!.budgetPeriodStart).toEqual(startOfMonth(new Date()));
+      expect(row!.status).not.toBe("paused");
+    });
+
+    it("does not reset the spend inside the same month", async () => {
+      await db
+        .update(agents)
+        .set({
+          budgetMonthlyCents: 500,
+          spentMonthlyCents: 500,
+          budgetPeriodStart: startOfMonth(new Date()),
+        })
+        .where(eq(agents.id, agent));
+      await dispatch.requestWake(org, agent, reason("timer"));
+
+      expect(await dispatch.claimNext("runner-1", 30)).toBeNull();
+
+      const [row] = await db.select().from(agents).where(eq(agents.id, agent));
+      expect(row!.spentMonthlyCents).toBe(500);
+      expect(row!.pauseReason).toBe("budget");
     });
   });
 

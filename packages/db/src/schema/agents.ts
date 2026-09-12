@@ -72,6 +72,12 @@ export const agents = pgTable(
     permissions: jsonb("permissions").$type<Record<string, unknown>>().notNull().default({}),
     budgetMonthlyCents: integer("budget_monthly_cents").notNull().default(0),
     spentMonthlyCents: integer("spent_monthly_cents").notNull().default(0),
+    /**
+     * Which month `spent_monthly_cents` is counting. Without it that column only
+     * ever grew, so the first month an agent reached its limit was the last
+     * month it ever ran — the dispatcher rolls it over here when the month turns.
+     */
+    budgetPeriodStart: timestamp("budget_period_start", { withTimezone: true }),
 
     lastHeartbeatAt: timestamp("last_heartbeat_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
