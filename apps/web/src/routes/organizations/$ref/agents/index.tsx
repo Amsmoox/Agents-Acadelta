@@ -4,7 +4,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Plus } from "lucide-react";
-import type { Agent, OrgTreeNode } from "@agentco/shared";
+import type { Agent } from "@agentco/shared";
 import { AGENT_ROLE_LABELS } from "@agentco/shared";
 import { Page, PageHeader } from "@/components/ui/page";
 import { List, ListRow } from "@/components/ui/list";
@@ -19,8 +19,8 @@ import { urlOrganizationMatches } from "@/features/organizations/url-organizatio
 import { useAgents, useOrgTree } from "@/features/agents/queries";
 import { STATUS_LABEL, STATUS_TONE } from "@/features/agents/status";
 import { AdapterIcon } from "@/components/adapter-icon";
+import { OrgChart } from "@/components/org-chart";
 import { useAdapters } from "@/features/agents/queries";
-import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/organizations/$ref/agents/")({
   component: AgentsPage,
@@ -187,13 +187,18 @@ function AgentsPage() {
       ) : null}
 
       {roster.length > 0 && view === "org" ? (
-        <List>
-          <div className="p-2">
-            {(tree.data ?? []).map((node) => (
-              <TreeNode key={node.id} node={node} depth={0} org={org} />
-            ))}
-          </div>
-        </List>
+        <div className="rounded-[var(--radius-md)] border border-line bg-sunken">
+          <OrgChart
+            nodes={tree.data ?? []}
+            org={org}
+            detail={Object.fromEntries(
+              roster.map((agent) => [
+                agent.id,
+                { caption: agent.title ?? AGENT_ROLE_LABELS[agent.role], adapterType: agent.adapterType },
+              ]),
+            )}
+          />
+        </div>
       ) : null}
     </Page>
   );
@@ -232,32 +237,6 @@ function AgentRow({ agent, adapterLabel, org }: { agent: Agent; adapterLabel: st
         </div>
       </ListRow>
     </Link>
-  );
-}
-
-/** Indented tree. Enough to read a reporting line; no pan-and-zoom canvas. */
-function TreeNode({ node, depth, org }: { node: OrgTreeNode; depth: number; org: string }) {
-  return (
-    <div>
-      <Link
-        to="/organizations/$ref/agents/$agentRef"
-        params={{ ref: org, agentRef: node.id }}
-        className={cn(
-          "flex items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5",
-          "text-sm text-ink transition-colors duration-75 hover:bg-sunken",
-        )}
-        style={{ paddingLeft: `${depth * 20 + 8}px` }}
-      >
-        <StatusDot tone={STATUS_TONE[node.status]} />
-        <span className="truncate">{node.name}</span>
-        {node.reports.length > 0 ? (
-          <span className="machine text-2xs text-faint">{node.reports.length}</span>
-        ) : null}
-      </Link>
-      {node.reports.map((child) => (
-        <TreeNode key={child.id} node={child} depth={depth + 1} org={org} />
-      ))}
-    </div>
   );
 }
 
