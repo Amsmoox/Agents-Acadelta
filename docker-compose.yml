@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: agentco-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: agentco
+      POSTGRES_PASSWORD: agentco
+      POSTGRES_DB: agentco
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentco -d agentco"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: agentco-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: agentco
+      MINIO_ROOT_PASSWORD: agentco123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:
+  minio-data:
