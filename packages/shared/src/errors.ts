@@ -44,6 +44,39 @@ export const ERRORS = {
     status: 409,
     message: "Could not derive an available slug from that name. Pass one explicitly.",
   },
+  // 25xx — projects
+  PROJECT_NOT_FOUND: { code: 2501, status: 404, message: "Project not found." },
+  PROJECT_SLUG_TAKEN: { code: 2502, status: 409, message: "That project name is already in use." },
+  PROJECT_PREFIX_TAKEN: {
+    code: 2503,
+    status: 409,
+    message: "That task prefix is already used by another project.",
+  },
+  PROJECT_ARCHIVED: {
+    code: 2504,
+    status: 409,
+    message: "Project is archived. Restore it before making changes.",
+  },
+  PROJECT_HAS_OPEN_WORK: {
+    code: 2505,
+    status: 409,
+    message: "This project still has work in progress.",
+  },
+  PROJECT_MEMBER_NOT_ASSIGNABLE: {
+    code: 2506,
+    status: 422,
+    message: "That agent cannot be given work, so it cannot be a project member.",
+  },
+  PROJECT_SLUG_UNAVAILABLE: {
+    code: 2507,
+    status: 409,
+    message: "Could not derive an available name from that. Pass a slug explicitly.",
+  },
+  PROJECT_PREFIX_UNAVAILABLE: {
+    code: 2508,
+    status: 409,
+    message: "Could not derive an available task prefix from that name. Pass one explicitly.",
+  },
   // 3xxx — agents
   AGENT_NOT_FOUND: { code: 3001, status: 404, message: "Agent not found." },
   AGENT_SLUG_TAKEN: { code: 3002, status: 409, message: "That agent name is already in use." },
