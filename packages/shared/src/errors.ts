@@ -17,6 +17,14 @@ export const ERRORS = {
   NOT_FOUND: { code: 1002, status: 404, message: "Resource not found." },
   CONFLICT: { code: 1003, status: 409, message: "Conflicting state." },
   INTERNAL: { code: 1000, status: 500, message: "Internal error." },
+  MALFORMED_JSON: { code: 1004, status: 400, message: "Request body is not valid JSON." },
+  PAYLOAD_TOO_LARGE: { code: 1005, status: 413, message: "Request body is too large." },
+  UNSUPPORTED_MEDIA_TYPE: {
+    code: 1006,
+    status: 415,
+    message: "Send this request as application/json.",
+  },
+  BAD_REQUEST: { code: 1007, status: 400, message: "The request could not be read." },
 
   // 2xxx — organizations
   ORGANIZATION_NOT_FOUND: { code: 2001, status: 404, message: "Organization not found." },
