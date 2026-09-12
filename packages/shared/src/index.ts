@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Mharrech Ayoub <mharrech.ayoub@gmail.com>
 
-// Shared Zod schemas and types used by api, runner and web.
-// Nothing is modelled yet beyond project identity.
+// Schemas and types shared across api, runner and web.
 
 export * from "./provenance.js";
+export * from "./errors.js";
+export * from "./organizations.js";
