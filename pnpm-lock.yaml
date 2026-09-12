@@ -38,6 +38,9 @@ importers:
       '@agentco/adapters':
         specifier: workspace:^
         version: link:../../packages/adapters
+      '@agentco/core':
+        specifier: workspace:^
+        version: link:../../packages/core
       '@agentco/db':
         specifier: workspace:^
         version: link:../../packages/db
@@ -93,6 +96,12 @@ importers:
 
   apps/runner:
     dependencies:
+      '@agentco/adapters':
+        specifier: workspace:^
+        version: link:../../packages/adapters
+      '@agentco/core':
+        specifier: workspace:^
+        version: link:../../packages/core
       '@agentco/db':
         specifier: workspace:^
         version: link:../../packages/db
@@ -224,6 +233,22 @@ importers:
       zod:
         specifier: ^4.6.2
         version: 4.6.2
+    devDependencies:
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+
+  packages/core:
+    dependencies:
+      '@agentco/db':
+        specifier: workspace:^
+        version: link:../db
+      '@agentco/shared':
+        specifier: workspace:^
+        version: link:../shared
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@types/pg@8.23.1)(pg@8.23.0)
     devDependencies:
       typescript:
         specifier: ^6.0.3

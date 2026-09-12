@@ -89,7 +89,7 @@ export async function migrateTestDatabase(): Promise<void> {
 export async function truncateAll(): Promise<void> {
   await withPool(TEST_DATABASE_URL, async (pool) => {
     await pool.query(
-      "truncate table agc_organizations, agc_agents, agc_agent_config_revisions, agc_skills, agc_agent_skills, agc_agent_instruction_files restart identity cascade",
+      "truncate table agc_organizations, agc_agents, agc_agent_config_revisions, agc_skills, agc_agent_skills, agc_agent_instruction_files, agc_agent_wakeups, agc_agent_runs, agc_run_events restart identity cascade",
     );
   });
 }

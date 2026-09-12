@@ -27,7 +27,7 @@ import {
   type UpdateAgentInput,
 } from "@agentco/shared";
 import { adapterConfigValidator, isKnownAdapter } from "@agentco/adapters";
-import { createInstructionRepository } from "./instructions.js";
+import { createInstructionRepository } from "@agentco/core";
 
 const UNIQUE_VIOLATION = "23505";
 const MAX_SLUG_ATTEMPTS = 6;

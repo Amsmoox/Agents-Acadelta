@@ -12,8 +12,7 @@ import {
 } from "@agentco/shared";
 import { createOrganizationRepository } from "../organizations/repository.js";
 import { createAgentRepository } from "../agents/repository.js";
-import { createInstructionRepository } from "../agents/instructions.js";
-import { createSkillRepository } from "./repository.js";
+import { createInstructionRepository, createSkillRepository } from "@agentco/core";
 
 const orgParams = z.object({ orgRef: z.string().min(1).max(63) });
 const skillParams = orgParams.extend({ ref: z.string().min(1).max(63) });

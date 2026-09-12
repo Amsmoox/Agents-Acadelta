@@ -71,6 +71,7 @@ export const agents = pgTable(
     errorReason: text("error_reason"),
     permissions: jsonb("permissions").$type<Record<string, unknown>>().notNull().default({}),
     budgetMonthlyCents: integer("budget_monthly_cents").notNull().default(0),
+    spentMonthlyCents: integer("spent_monthly_cents").notNull().default(0),
 
     lastHeartbeatAt: timestamp("last_heartbeat_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

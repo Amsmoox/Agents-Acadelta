@@ -85,6 +85,19 @@ export const ERRORS = {
     status: 409,
     message: "AGENTS.md is the entry file and cannot be deleted.",
   },
+  // 5xxx - execution
+  RUN_NOT_FOUND: { code: 5001, status: 404, message: "Run not found." },
+  RUN_NOT_ACTIVE: { code: 5002, status: 409, message: "That run has already finished." },
+  AGENT_NOT_INVOKABLE: {
+    code: 5003,
+    status: 409,
+    message: "This agent cannot run right now.",
+  },
+  ADAPTER_NOT_RUNNABLE: {
+    code: 5004,
+    status: 422,
+    message: "This agent type cannot be run by the local runner yet.",
+  },
 } as const;
 
 export type ErrorKey = keyof typeof ERRORS;
