@@ -260,6 +260,67 @@ describe.skipIf(!reachable)("agents API", () => {
       ).json().data;
       expect(after.length).toBeGreaterThanOrEqual(1);
     });
+
+    it("records the rollback as its own revision, pointing at the one replayed", async () => {
+      const agent = (await create({ name: "Ada", title: "One" })).json();
+      const patch = (title: string) =>
+        app.inject({
+          method: "PATCH",
+          url: `/organizations/${org}/agents/${agent.id}`,
+          payload: { title },
+        });
+      await patch("Two");
+      await patch("Three");
+
+      const list = async () =>
+        (
+          await app.inject({
+            method: "GET",
+            url: `/organizations/${org}/agents/${agent.id}/revisions`,
+          })
+        ).json().data;
+
+      // Newest first, so the older of the two is the one that produced "Two".
+      const toTwo = (await list()).at(-1);
+      const restored = await post(`${agent.id}/revisions/${toTwo.id}/rollback`);
+      expect(restored.json().title).toBe("Two");
+
+      const [newest] = await list();
+      expect(newest.source).toBe("rollback");
+      expect(newest.rolledBackFromRevisionId).toBe(toTwo.id);
+      expect(newest.changedKeys).toEqual(["title"]);
+    });
+
+    it("does not relabel an unrelated revision when the rollback changes nothing", async () => {
+      // The regression. The source used to be corrected with a second UPDATE
+      // that matched "the newest revision with source=patch" — but a rollback
+      // to the state an agent is already in writes no revision at all, so that
+      // UPDATE stamped "rollback" onto whatever edit happened to be newest and
+      // the history started describing changes nobody made.
+      const agent = (await create({ name: "Ada", title: "One" })).json();
+      await app.inject({
+        method: "PATCH",
+        url: `/organizations/${org}/agents/${agent.id}`,
+        payload: { title: "Two" },
+      });
+
+      const list = async () =>
+        (
+          await app.inject({
+            method: "GET",
+            url: `/organizations/${org}/agents/${agent.id}/revisions`,
+          })
+        ).json().data;
+
+      const [toTwo] = await list();
+      // Rolling back to the state it is already in.
+      expect((await post(`${agent.id}/revisions/${toTwo.id}/rollback`)).statusCode).toBe(200);
+
+      const after = await list();
+      expect(after).toHaveLength(1);
+      expect(after[0].source).toBe("patch");
+      expect(after[0].rolledBackFromRevisionId).toBeNull();
+    });
   });
 
   describe("adapters", () => {

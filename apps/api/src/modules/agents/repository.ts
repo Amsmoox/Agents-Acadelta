@@ -300,7 +300,22 @@ export function createAgentRepository(db: Database) {
       return buildOrgTree(visible);
     },
 
-    async update(organizationId: string, ref: string, input: UpdateAgentInput): Promise<Agent> {
+    /**
+     * One write path for every edit, so a rollback passes exactly the guards a
+     * manual edit does and is recorded the same way.
+     *
+     * `source` is decided by the caller and written with the revision rather
+     * than corrected afterwards. Relabelling the newest revision after the fact
+     * looked equivalent and was not: a rollback that changed nothing writes no
+     * revision at all, and the update then stamped "rollback" onto whatever
+     * unrelated edit happened to be newest.
+     */
+    async applyUpdate(
+      organizationId: string,
+      ref: string,
+      input: UpdateAgentInput,
+      provenance: { source: "patch" | "rollback"; rolledBackFromRevisionId?: string },
+    ): Promise<Agent> {
       const existing = await requireRow(organizationId, ref);
 
       if (existing.status === "terminated") throw new AppError("AGENT_TERMINATED");
@@ -349,7 +364,10 @@ export function createAgentRepository(db: Database) {
           await tx.insert(agentConfigRevisions).values({
             organizationId,
             agentId: row.id,
-            source: "patch",
+            source: provenance.source,
+            ...(provenance.rolledBackFromRevisionId
+              ? { rolledBackFromRevisionId: provenance.rolledBackFromRevisionId }
+              : {}),
             changedKeys,
             beforeConfig: before,
             afterConfig: after,
@@ -358,6 +376,10 @@ export function createAgentRepository(db: Database) {
 
         return toAgent(row);
       });
+    },
+
+    async update(organizationId: string, ref: string, input: UpdateAgentInput): Promise<Agent> {
+      return this.applyUpdate(organizationId, ref, input, { source: "patch" });
     },
 
     /**
@@ -449,22 +471,10 @@ export function createAgentRepository(db: Database) {
         budgetMonthlyCents: snapshot["budgetMonthlyCents"] as number,
       };
 
-      const updated = await this.update(organizationId, ref, patch);
-
-      await db
-        .update(agentConfigRevisions)
-        .set({ source: "rollback", rolledBackFromRevisionId: revision.id })
-        .where(
-          and(
-            eq(agentConfigRevisions.agentId, existing.id),
-            eq(agentConfigRevisions.source, "patch"),
-            sql`${agentConfigRevisions.createdAt} = (
-              select max(created_at) from ${agentConfigRevisions} where agent_id = ${existing.id}
-            )`,
-          ),
-        );
-
-      return updated;
+      return this.applyUpdate(organizationId, ref, patch, {
+        source: "rollback",
+        rolledBackFromRevisionId: revision.id,
+      });
     },
   };
 }
