@@ -4,15 +4,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
 import { Archive, ArrowLeft, MoreHorizontal, Pause, Play, RotateCcw, Users } from "lucide-react";
-import type { Project, ProjectMember } from "@agentco/shared";
+import { buildOrgTree, type OrgChainNode, type Project, type ProjectMember } from "@agentco/shared";
 import { Page, PageHeader } from "@/components/ui/page";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
-import { Badge, StatusDot, Tag } from "@/components/ui/status";
+import { Badge, Tag } from "@/components/ui/status";
 import { Callout } from "@/components/ui/callout";
 import { Card } from "@/components/ui/card";
-import { List, ListRow } from "@/components/ui/list";
 import { CheckboxField } from "@/components/ui/checkbox";
 import { Select } from "@/components/ui/select";
 import { ErrorState, Skeleton, Spinner } from "@/components/ui/feedback";
@@ -26,9 +25,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { toast, useConfirm } from "@/components/ui";
-import { AdapterIcon } from "@/components/adapter-icon";
+import { OrgChart } from "@/components/org-chart";
 import { useAgents } from "@/features/agents/queries";
-import { STATUS_LABEL, STATUS_TONE } from "@/features/agents/status";
 import {
   useProject,
   useProjectMembers,
@@ -264,35 +262,43 @@ function Team({ org, project }: { org: string; project: Project }) {
         </p>
       ) : null}
 
-      {list.length > 0 ? (
-        <List>
-          {list.map((member) => (
-            <ListRow key={member.agentId}>
-              <StatusDot
-                tone={STATUS_TONE[member.status as keyof typeof STATUS_TONE] ?? "idle"}
-                className="mt-[0.4375rem] self-start"
-              />
-              <AdapterIcon type={member.adapterType} className="mt-0.5 size-4 self-start" />
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Link
-                    to="/organizations/$ref/agents/$agentRef"
-                    params={{ ref: org, agentRef: member.slug }}
-                    className="truncate text-xs font-medium text-ink hover:underline"
-                  >
-                    {member.name}
-                  </Link>
-                  {member.role === "lead" ? <Badge tone="active">Lead</Badge> : null}
-                </div>
-                <p className="mt-0.5 truncate text-2xs text-muted">
-                  {member.title ?? STATUS_LABEL[member.status as keyof typeof STATUS_LABEL] ?? member.status}
-                </p>
-              </div>
-            </ListRow>
-          ))}
-        </List>
-      ) : null}
+      {list.length > 0 ? <TeamChart org={org} members={list} /> : null}
     </Card>
+  );
+}
+
+/**
+ * The team, positioned by the company's reporting line.
+ *
+ * `buildOrgTree` promotes an agent whose manager is not on this project to the
+ * top rather than dropping it, which is the whole reason a project needs no
+ * hierarchy of its own: the same structure, filtered, is always well formed.
+ */
+function TeamChart({ org, members }: { org: string; members: ProjectMember[] }) {
+  const nodes: OrgChainNode[] = members.map((member) => ({
+    id: member.agentId,
+    name: member.name,
+    status: member.status as OrgChainNode["status"],
+    reportsTo: member.reportsTo,
+  }));
+
+  const detail = Object.fromEntries(
+    members.map((member) => [
+      member.agentId,
+      {
+        caption: member.title,
+        adapterType: member.adapterType,
+        // The tree shows who reports to whom; it cannot show who speaks for the
+        // project, so that is the one thing labelled.
+        ...(member.role === "lead" ? { tag: "Lead" } : {}),
+      },
+    ]),
+  );
+
+  return (
+    <div className="-mx-4 -mb-4 border-t border-line bg-sunken">
+      <OrgChart nodes={buildOrgTree(nodes)} org={org} detail={detail} />
+    </div>
   );
 }
 

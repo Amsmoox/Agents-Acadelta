@@ -143,4 +143,23 @@ describe("buildOrgTree", () => {
     const tree = buildOrgTree([node("a", "b"), node("b", "a")]);
     expect(Array.isArray(tree)).toBe(true);
   });
+
+  it("draws a project's team from the company structure, filtered", () => {
+    // This is what lets a project have no hierarchy of its own. The company is
+    // nadia -> sam -> jun, and nadia -> leo. A project staffed with sam and jun
+    // but not nadia keeps sam above jun, and sam becomes the root rather than
+    // disappearing along with the manager who is not on the project.
+    const company = [
+      node("nadia", null),
+      node("sam", "nadia"),
+      node("jun", "sam"),
+      node("leo", "nadia"),
+    ];
+    const team = new Set(["sam", "jun"]);
+
+    const tree = buildOrgTree(company.filter((agent) => team.has(agent.id)));
+
+    expect(tree.map((n) => n.id)).toEqual(["sam"]);
+    expect(tree[0]?.reports.map((r) => r.id)).toEqual(["jun"]);
+  });
 });

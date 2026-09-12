@@ -325,6 +325,7 @@ export function createProjectRepository(db: Database) {
           status: agents.status,
           adapterType: agents.adapterType,
           title: agents.title,
+          reportsTo: agents.reportsTo,
         })
         .from(projectMembers)
         .innerJoin(agents, eq(agents.id, projectMembers.agentId))
@@ -340,6 +341,7 @@ export function createProjectRepository(db: Database) {
         status: row.status,
         adapterType: row.adapterType,
         title: row.title,
+        reportsTo: row.reportsTo,
         addedAt: row.addedAt.toISOString(),
       }));
     },

@@ -125,6 +125,13 @@ export const projectMemberSchema = z.object({
   status: z.string(),
   adapterType: z.string(),
   title: z.string().nullable(),
+  /**
+   * The company reporting line, carried so the project can draw its team as a
+   * tree. A project has no hierarchy of its own — it draws the organization's,
+   * filtered to its members — and two structures that could disagree is
+   * precisely what that avoids.
+   */
+  reportsTo: z.uuid().nullable(),
   addedAt: z.iso.datetime(),
 });
 
