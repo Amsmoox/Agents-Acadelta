@@ -1,0 +1,25 @@
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+
+.env
+.env.local
+.env.*.local
+
+.DS_Store
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+coverage/
+.vitest/
+
+# local runtime state
+var/
+/data/
+run-transcripts/
+
+.idea/
+.vscode/*
+!.vscode/extensions.json
