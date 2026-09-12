@@ -100,6 +100,37 @@ describe.skipIf(!reachable)("dispatch", () => {
       const again = await dispatch.requestWake(org, agent, reason("timer"));
       expect(again.coalesced).toBe(false);
     });
+
+    it("reports coalescing from the row it wrote, not from a read beforehand", async () => {
+      // Three callers arriving together all used to find no pending wakeup and
+      // all report "queued", when two of them had merged into the first.
+      const results = await Promise.all([
+        dispatch.requestWake(org, agent, reason("a")),
+        dispatch.requestWake(org, agent, reason("b")),
+        dispatch.requestWake(org, agent, reason("c")),
+      ]);
+
+      expect(results.filter((r) => !r.coalesced)).toHaveLength(1);
+      expect(results.filter((r) => r.coalesced)).toHaveLength(2);
+
+      const rows = await db.select().from(agentWakeups).where(eq(agentWakeups.agentId, agent));
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.reasons).toHaveLength(3);
+    });
+
+    it("keeps a bounded window of reasons rather than growing without limit", async () => {
+      // An agent paused with a wakeup pending can be triggered indefinitely,
+      // and nothing ever trimmed the row.
+      for (let i = 0; i < 30; i += 1) {
+        await dispatch.requestWake(org, agent, reason(`trigger-${i}`));
+      }
+
+      const [row] = await db.select().from(agentWakeups).where(eq(agentWakeups.agentId, agent));
+      expect(row!.reasons).toHaveLength(20);
+      // The most recent survive; the oldest are the ones dropped.
+      expect(row!.reasons.at(-1)!.type).toBe("trigger-29");
+      expect(row!.reasons.at(0)!.type).toBe("trigger-10");
+    });
   });
 
   describe("the lease", () => {

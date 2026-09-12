@@ -41,6 +41,9 @@ export type ClaimedRun = {
 /** A run reaped this many times stops being retried and waits for a person. */
 const POISON_PILL_LIMIT = 3;
 
+/** How many trigger reasons one pending wakeup keeps. The most recent win. */
+const MAX_WAKE_REASONS = 20;
+
 /**
  * The first instant of the calendar month a moment falls in, in UTC.
  *
@@ -69,13 +72,7 @@ export function createDispatchRepository(db: Database) {
       reason: WakeReason,
       prompt?: string,
     ): Promise<{ coalesced: boolean }> {
-      const before = await db
-        .select({ id: agentWakeups.id })
-        .from(agentWakeups)
-        .where(and(eq(agentWakeups.agentId, agentId), eq(agentWakeups.status, "pending")))
-        .limit(1);
-
-      await db
+      const [row] = await db
         .insert(agentWakeups)
         .values({
           organizationId,
@@ -87,15 +84,27 @@ export function createDispatchRepository(db: Database) {
           target: agentWakeups.agentId,
           targetWhere: sql`status = 'pending'`,
           set: {
-            reasons: sql`${agentWakeups.reasons} || ${JSON.stringify([reason])}::jsonb`,
+            // A rolling window, not an append-only log. An agent that is paused
+            // with a wakeup pending can be triggered indefinitely, and every
+            // trigger used to add another entry to a row nobody ever trimmed.
+            reasons: sql`(case
+              when jsonb_array_length(${agentWakeups.reasons}) >= ${MAX_WAKE_REASONS}
+              then ${agentWakeups.reasons} #- '{0}'
+              else ${agentWakeups.reasons}
+            end) || ${JSON.stringify([reason])}::jsonb`,
             // A later prompt supersedes an earlier one; the agent should act on
             // the most recent instruction, not the one that happened to be first.
             ...(prompt ? { prompt } : {}),
             updatedAt: new Date(),
           },
-        });
+        })
+        .returning({ reasonCount: sql<number>`jsonb_array_length(${agentWakeups.reasons})` });
 
-      return { coalesced: before.length > 0 };
+      // Read off the row the statement actually wrote, rather than a SELECT
+      // beforehand: two callers arriving together both found nothing and both
+      // reported "queued", when one of them had in fact merged into the other.
+      // A fresh insert carries exactly one reason; only the update path appends.
+      return { coalesced: (row?.reasonCount ?? 1) > 1 };
     },
 
     /**
