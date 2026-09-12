@@ -4,85 +4,172 @@
  */
 
 @import "tailwindcss";
-@import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Design system — agentco console
+ *
+ * One rule governs the palette: colour means something. Chrome is monochrome
+ * (ink on paper, hairline rules), and hue is reserved exclusively for state an
+ * operator can act on — running, blocked, over budget, archived. If something
+ * on screen is coloured, it is a state, not decoration.
+ *
+ * Type is set at 13px. This is a console that shows many rows at once; the
+ * scale is tuned for scanning density, not for reading prose.
+ */
+
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  /* Surfaces — paper is the page, surface is anything raised off it. */
+  --paper: #fcfcfd;
+  --surface: #ffffff;
+  --surface-sunken: #f4f5f7;
+
+  /* Ink — three weights carry the whole hierarchy, no colour needed. */
+  --ink: #14161a;
+  --ink-muted: #5c6270;
+  --ink-faint: #8a909c;
+  --ink-inverse: #fbfbfc;
+
+  /* Rules — hairlines do the structural work that borders and shadows would. */
+  --line: #e5e7ec;
+  --line-strong: #d1d5dd;
+
+  --focus: #14161a;
+
+  /* State — the only hues in the system. */
+  --state-active: #1a7a52;
+  --state-active-soft: #e6f4ed;
+  --state-attention: #8d5600;
+  --state-attention-soft: #fcf0dd;
+  --state-danger: #b42318;
+  --state-danger-soft: #fdeceb;
+  --state-idle: #6b7280;
+  --state-idle-soft: #f0f1f4;
+
+  --radius: 5px;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --paper: #0d0f13;
+  --surface: #15181e;
+  --surface-sunken: #101318;
+
+  --ink: #e9ebef;
+  --ink-muted: #9aa1ad;
+  --ink-faint: #69707d;
+  --ink-inverse: #0d0f13;
+
+  --line: #222731;
+  --line-strong: #313845;
+
+  --focus: #e9ebef;
+
+  --state-active: #46b184;
+  --state-active-soft: #10271e;
+  --state-attention: #d69a3c;
+  --state-attention-soft: #2a2013;
+  --state-danger: #f0645b;
+  --state-danger-soft: #2d1614;
+  --state-idle: #7d8493;
+  --state-idle-soft: #1c2027;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-sunken: var(--surface-sunken);
+
+  --color-ink: var(--ink);
+  --color-muted: var(--ink-muted);
+  --color-faint: var(--ink-faint);
+  --color-inverse: var(--ink-inverse);
+
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-focus: var(--focus);
+
+  --color-active: var(--state-active);
+  --color-active-soft: var(--state-active-soft);
+  --color-attention: var(--state-attention);
+  --color-attention-soft: var(--state-attention-soft);
+  --color-danger: var(--state-danger);
+  --color-danger-soft: var(--state-danger-soft);
+  --color-idle: var(--state-idle);
+  --color-idle-soft: var(--state-idle-soft);
+
+  --font-sans: "Archivo Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Console scale: 13px base, 11px meta. Nothing here is decorative. */
+  --text-2xs: 0.6875rem;   /* 11px — meta, counts, timestamps */
+  --text-2xs--line-height: 1rem;
+  --text-xs: 0.75rem;      /* 12px — labels, table headers */
+  --text-xs--line-height: 1.125rem;
+  --text-sm: 0.8125rem;    /* 13px — base */
+  --text-sm--line-height: 1.25rem;
+  --text-base: 0.875rem;   /* 14px — emphasis within a row */
+  --text-base--line-height: 1.375rem;
+  --text-lg: 1rem;         /* 16px — section titles */
+  --text-lg--line-height: 1.5rem;
+  --text-xl: 1.125rem;     /* 18px — page titles */
+  --text-xl--line-height: 1.5rem;
+  --text-2xl: 1.625rem;    /* 26px — the one display size */
+  --text-2xl--line-height: 2rem;
+
+  --radius-sm: 3px;
+  --radius-md: var(--radius);
+  --radius-lg: 8px;
 }
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    border-color: var(--line);
   }
+
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+
   body {
-    @apply bg-background text-foreground;
-    font-synthesis-weight: none;
+    background-color: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    line-height: 1.25rem;
+    -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Machine values are set in mono and aligned: IDs, costs, timestamps, counts.
+     An operator compares these column-wise, so the digits must line up. */
+  .machine {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background: var(--ink);
+    color: var(--ink-inverse);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }
