@@ -250,6 +250,67 @@ describe.skipIf(!reachable)("organizations API", () => {
     });
   });
 
+  describe("malformed requests", () => {
+    // Each of these used to fall through to a 500, telling the caller nothing.
+    it("answers 400 for a body that is not valid JSON", async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: "/organizations",
+        headers: { "content-type": "application/json" },
+        payload: '{"name":',
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error.code).toBe("AGC-1004");
+    });
+
+    it("answers 413 for a body over the size limit", async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: "/organizations",
+        headers: { "content-type": "application/json" },
+        payload: JSON.stringify({ name: "a".repeat(2_000_000) }),
+      });
+      expect(res.statusCode).toBe(413);
+      expect(res.json().error.code).toBe("AGC-1005");
+    });
+
+    it("never answers a client mistake with a 500", async () => {
+      for (const payload of ["{", "[]invalid", ""]) {
+        const res = await app.inject({
+          method: "POST",
+          url: "/organizations",
+          headers: { "content-type": "application/json" },
+          payload,
+        });
+        expect(res.statusCode).toBeLessThan(500);
+      }
+    });
+  });
+
+  describe("pagination across more than one page", () => {
+    it("walks every row via the cursor without gaps or repeats", async () => {
+      // The list UI depends on this: it follows nextCursor until it is null.
+      const total = 105;
+      for (let i = 0; i < total; i += 1) {
+        await create({ name: `Org ${String(i).padStart(3, "0")}` });
+      }
+
+      const seen: string[] = [];
+      let cursor: string | null = null;
+      for (let page = 0; page < 10; page += 1) {
+        const suffix: string = cursor ? `&cursor=${encodeURIComponent(cursor)}` : "";
+        const response = await app.inject({ method: "GET", url: `/organizations?limit=50${suffix}` });
+        const body = response.json() as { data: { id: string }[]; nextCursor: string | null };
+        seen.push(...body.data.map((o) => o.id));
+        cursor = body.nextCursor;
+        if (!cursor) break;
+      }
+
+      expect(seen).toHaveLength(total);
+      expect(new Set(seen).size).toBe(total);
+    });
+  });
+
   describe("unknown routes", () => {
     it("answers in the same error shape", async () => {
       const res = await app.inject({ method: "GET", url: "/nope" });
