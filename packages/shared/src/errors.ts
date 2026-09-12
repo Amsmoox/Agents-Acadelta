@@ -39,6 +39,41 @@ export const ERRORS = {
     status: 409,
     message: "Could not derive an available slug from that name. Pass one explicitly.",
   },
+  // 3xxx — agents
+  AGENT_NOT_FOUND: { code: 3001, status: 404, message: "Agent not found." },
+  AGENT_SLUG_TAKEN: { code: 3002, status: 409, message: "That agent name is already in use." },
+  AGENT_TERMINATED: {
+    code: 3003,
+    status: 409,
+    message: "This agent was terminated. Termination cannot be undone.",
+  },
+  AGENT_CONFIG_FROZEN: {
+    code: 3004,
+    status: 409,
+    message: "This agent is awaiting approval. Its configuration cannot change until it is approved.",
+  },
+  AGENT_REPORTING_CYCLE: {
+    code: 3005,
+    status: 422,
+    message: "That reporting line would create a loop.",
+  },
+  AGENT_MANAGER_NOT_FOUND: {
+    code: 3006,
+    status: 422,
+    message: "That manager does not exist in this organization.",
+  },
+  UNKNOWN_ADAPTER: { code: 3007, status: 422, message: "That agent type is not available." },
+  AGENT_NOT_IN_ERROR: {
+    code: 3008,
+    status: 409,
+    message: "This agent is not in an error state.",
+  },
+  AGENT_REVISION_NOT_FOUND: { code: 3009, status: 404, message: "Revision not found." },
+  AGENT_ADAPTER_CONFIG_INVALID: {
+    code: 3010,
+    status: 422,
+    message: "The agent settings are incomplete.",
+  },
 } as const;
 
 export type ErrorKey = keyof typeof ERRORS;
