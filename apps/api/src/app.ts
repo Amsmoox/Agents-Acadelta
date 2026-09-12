@@ -10,6 +10,7 @@ import { PROJECT, PROVENANCE_HEADER } from "@agentco/shared";
 import type { Env } from "./env.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerOrganizationRoutes } from "./modules/organizations/routes.js";
+import { registerProjectRoutes } from "./modules/projects/routes.js";
 import { registerAgentRoutes } from "./modules/agents/routes.js";
 import { registerAdapterRoutes } from "./modules/adapters/routes.js";
 import { registerKnowledgeRoutes } from "./modules/skills/routes.js";
@@ -49,6 +50,7 @@ export async function buildApp(env: Env): Promise<AppContext> {
 
   await app.register(registerHealthRoutes, { pool: database.pool });
   await app.register(registerOrganizationRoutes);
+  await app.register(registerProjectRoutes);
   await app.register(registerAgentRoutes);
   await app.register(registerAdapterRoutes);
   await app.register(registerKnowledgeRoutes);
