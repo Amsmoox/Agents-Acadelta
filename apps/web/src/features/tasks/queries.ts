@@ -25,7 +25,12 @@ export type ReviewDecision = {
   createdAt: string;
 };
 
-export type TaskDetail = Task & { comments: TaskComment[]; decisions: ReviewDecision[] };
+export type TaskDetail = Task & {
+  comments: TaskComment[];
+  decisions: ReviewDecision[];
+  parent: Task | null;
+  children: Task[];
+};
 
 export const taskKeys = {
   all: ["tasks"] as const,
@@ -134,6 +139,27 @@ export function useObjectives(org: string, project: string) {
     refetchInterval: (query) =>
       livePoll((query.state.data?.data ?? []).some((o) => o.status === "active")),
   });
+}
+
+export function useTaskBlockers(org: string, key: string) {
+  const client = useQueryClient();
+  return {
+    add: useMutation({
+      mutationFn: (blockerTaskId: string) =>
+        request<Task>(`/organizations/${org}/tasks/${key}/blockers`, {
+          method: "POST",
+          body: JSON.stringify({ blockerTaskId }),
+        }),
+      onSuccess: () => client.invalidateQueries({ queryKey: taskKeys.all }),
+    }),
+    remove: useMutation({
+      mutationFn: (blockerTaskId: string) =>
+        request<Task>(`/organizations/${org}/tasks/${key}/blockers/${blockerTaskId}`, {
+          method: "DELETE",
+        }),
+      onSuccess: () => client.invalidateQueries({ queryKey: taskKeys.all }),
+    }),
+  };
 }
 
 export function useCreateObjective(org: string, project: string) {

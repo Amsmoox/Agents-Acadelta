@@ -77,14 +77,15 @@ export const tasks = pgTable(
     priority: taskPriority("priority").notNull().default("normal"),
 
     status: taskStatus("status").notNull().default("backlog"),
-    /** Bumped on every status write, so a stale view cannot overwrite a new one. */
-    statusVersion: bigint("status_version", { mode: "number" }).notNull().default(0),
     /**
-     * When this task most recently entered `blocked`.
-     *
-     * It looks like an audit column and is not: it is the cycle stamp that keeps
-     * unblock wakes idempotent across a task being blocked more than once.
+     * How many times the status has been written. A counter, not a lock: no
+     * query compares it, so two concurrent writes are still last-one-wins. It
+     * is here because the moment a second person can hold this screen open,
+     * pinning a write to the version it was based on is how that is settled,
+     * and the number has to have been counted from the start to be usable then.
      */
+    statusVersion: bigint("status_version", { mode: "number" }).notNull().default(0),
+    /** When this task most recently entered `blocked`. */
     blockedTransitionAt: timestamp("blocked_transition_at", { withTimezone: true }),
 
     assigneeAgentId: uuid("assignee_agent_id"),
@@ -104,7 +105,12 @@ export const tasks = pgTable(
     reviewPolicy: text("review_policy").notNull().default("not_creator"),
     reviewStateJson: jsonb("review_state_json").$type<Record<string, unknown>>(),
 
-    /** Runs that ended without moving this task or saying anything. */
+    /**
+     * Consecutive runs that ended without moving this task or saying a word
+     * about it. Past a threshold the task stops waking anybody and asks for a
+     * person: an agent that cannot make headway will not make headway on the
+     * hundredth attempt either, and each one costs the same as a useful run.
+     */
     noProgressRuns: integer("no_progress_runs").notNull().default(0),
     lastRunId: uuid("last_run_id"),
 
@@ -155,10 +161,21 @@ export const tasks = pgTable(
      * board with two of everything.
      */
     uniqueIndex(`${DB_TABLE_PREFIX}tasks_open_dup_key`)
-      // Doubled backslash on purpose: this is a TypeScript template literal, and
-      // a single one is eaten before PostgreSQL ever sees it — which silently
+      // Two escapes here, both of which were wrong once.
+      //
+      // The backslash is doubled because this is a TypeScript template literal
+      // and a single one is eaten before PostgreSQL sees it, which quietly
       // turned the whitespace class into the letter "s".
-      .on(t.projectId, t.parentId, sql`lower(regexp_replace(${t.title}, '\\s+', ' ', 'g'))`)
+      //
+      // And `parent_id` is coalesced because NULLs compare as distinct in a
+      // unique index: every task a person files sits at the root with a null
+      // parent, so the one group this was most needed for was the one group it
+      // never applied to.
+      .on(
+        t.projectId,
+        sql`coalesce(${t.parentId}, '00000000-0000-0000-0000-000000000000'::uuid)`,
+        sql`lower(regexp_replace(${t.title}, '\\s+', ' ', 'g'))`,
+      )
       .where(sql`status not in ('done', 'cancelled')`),
   ],
 );

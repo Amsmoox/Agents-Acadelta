@@ -80,6 +80,15 @@ export const MAX_TASK_DEPTH = 12;
 export const DEFAULT_CROSS_TASK_WRITE_LIMIT = 20;
 
 /**
+ * Consecutive runs achieving nothing on a task before it stops waking anybody.
+ *
+ * An agent that has woken five times and each time ended without moving the
+ * task or saying anything about it is stuck on something it cannot see its way
+ * past. Every further attempt costs a full run and produces the same nothing.
+ */
+export const MAX_NO_PROGRESS_RUNS = 5;
+
+/**
  * Consecutive agent-initiated rejections on one task before it goes to a person.
  *
  * The cap exists to stop unattended agent-to-agent ping-pong, not to limit a

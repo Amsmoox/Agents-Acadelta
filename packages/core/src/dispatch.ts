@@ -7,6 +7,7 @@ import {
   agentWakeups,
   agents,
   runEvents,
+  tasks,
   type AgentRunRow,
   type Database,
 } from "@agentco/db";
@@ -396,6 +397,15 @@ export function createDispatchRepository(db: Database) {
           .update(agents)
           .set({ status: "idle" })
           .where(and(eq(agents.id, run.agentId), eq(agents.status, "running")));
+
+        // And it lets go of whatever it was holding. A claim is scoped to a
+        // run, and claiming requires the slot to be free, so a run that died
+        // without unwinding would otherwise keep its task away from every
+        // future run — for ever, and silently.
+        await db
+          .update(tasks)
+          .set({ claimedByRunId: null, claimedAt: null })
+          .where(eq(tasks.claimedByRunId, run.id));
 
         // Repeatedly reaped means something about this work kills its runner.
         // Retrying forever would burn a machine; stop and wait for a person.

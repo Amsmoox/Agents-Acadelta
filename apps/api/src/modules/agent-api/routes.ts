@@ -14,7 +14,7 @@ import {
   type Actor,
   type RunIdentity,
 } from "@agentco/core";
-import { AppError, commentBodySchema, createTaskSchema } from "@agentco/shared";
+import { AppError, TASK_STATUSES, commentBodySchema, createTaskSchema } from "@agentco/shared";
 import { TOOLS, resolveInvocation } from "@agentco/sandbox";
 
 /**
@@ -78,6 +78,18 @@ export async function registerAgentApiRoutes(instance: FastifyInstance) {
     const id = identity(request);
     const row = await repo.requireRow(id.organizationId, ref).catch(() => null);
     if (!row) throw new AppError("TASK_NOT_FOUND", { ref });
+
+    // Same organization is not enough. A run works on one project, and reaching
+    // into another one's board is not something any legitimate command needs —
+    // so it answers as though the task does not exist, which for this run it
+    // does not. 404 rather than 403, because 403 confirms the row is there.
+    const current = id.currentTaskId
+      ? await repo.requireRow(id.organizationId, id.currentTaskId).catch(() => null)
+      : null;
+    if (!current || current.projectId !== row.projectId) {
+      throw new AppError("TASK_NOT_FOUND", { ref });
+    }
+
     if (write) await credentials.chargeCrossTaskWrite(id.runId, row.id);
     return { id, row };
   }
@@ -141,7 +153,10 @@ export async function registerAgentApiRoutes(instance: FastifyInstance) {
     {
       schema: {
         querystring: z.object({
-          status: z.string().optional(),
+          // Enumerated, so a status nobody has heard of comes back as a
+          // sentence naming the ones that exist rather than as a 500 from
+          // PostgreSQL rejecting an enum value.
+          status: z.enum(TASK_STATUSES).optional(),
           mine: z.coerce.boolean().optional(),
           limit: z.coerce.number().int().min(1).max(100).default(50),
         }),
@@ -156,9 +171,7 @@ export async function registerAgentApiRoutes(instance: FastifyInstance) {
 
       const all = await repo.list(id.organizationId, current.projectId, {
         limit: request.query.limit,
-        ...(request.query.status
-          ? { status: request.query.status as never }
-          : {}),
+        ...(request.query.status ? { status: request.query.status } : {}),
         ...(request.query.mine ? { assigneeAgentId: id.agentId } : {}),
       });
       return { data: all };
@@ -234,11 +247,13 @@ export async function registerAgentApiRoutes(instance: FastifyInstance) {
 
       // An agent's own comment never wakes it. It is already awake, and the
       // loop that starts otherwise reads its own words and answers them.
+      // Not woken if the task has already burned its attempts. Without this,
+      // two agents commenting at each other is a loop with no counter on it —
+      // every other automatic cycle here has a ceiling, and so does this one.
       if (
         row.assigneeAgentId &&
         row.assigneeAgentId !== id.agentId &&
-        row.status !== "done" &&
-        row.status !== "cancelled"
+        (await repo.worthWaking(row.id))
       ) {
         await workflow.applyWakes(
           id.organizationId,
@@ -316,7 +331,10 @@ export async function registerAgentApiRoutes(instance: FastifyInstance) {
         (request.params as { ref: string }).ref,
         true,
       );
-      await repo.addBlocker(id.organizationId, row.id, request.body.blockerTaskId);
+      // Resolved first: an id from another tenant would otherwise reach the
+      // foreign key and surface as a 500 rather than "no such task".
+      const blocker = await repo.requireRow(id.organizationId, request.body.blockerTaskId);
+      await repo.addBlocker(id.organizationId, row.id, blocker.id);
       return repo.get(id.organizationId, row.id);
     },
   );

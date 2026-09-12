@@ -49,17 +49,31 @@ export function createWorkflowService(db: Database) {
     return row?.name ?? "someone";
   }
 
-  /** Who is entitled to cast the verdict, given the task's policy. */
+  /**
+   * Who is entitled to cast the verdict.
+   *
+   * Three separate questions, and getting any of them wrong means work marks
+   * its own homework. The submitter is excluded because they are the one being
+   * judged; a task with no agent reviewer is waiting for a person and no agent
+   * may answer for them; and an agent that is not the designated reviewer has
+   * no standing at all, whatever else is true.
+   */
   function assertVerdictAllowed(row: TaskRow, state: ReviewState, actor: Actor): void {
     if (row.reviewPolicy === "human_only" && actor.type !== "user") {
       throw new AppError("TASK_REVIEW_NOT_ALLOWED", { policy: row.reviewPolicy });
     }
-    if (row.reviewPolicy === "not_creator" && actor.type === "agent") {
-      // Not reconstructed from a log after the fact: who submitted it is
-      // written down when they submit, because guessing gets it wrong.
-      if (state.submittedByAgentId && state.submittedByAgentId === actor.agentId) {
-        throw new AppError("TASK_REVIEW_NOT_ALLOWED", { policy: row.reviewPolicy });
-      }
+    if (actor.type !== "agent") return;
+
+    if (!state.reviewerAgentId) {
+      throw new AppError("TASK_REVIEW_NOT_ALLOWED", { reason: "waiting_for_a_person" });
+    }
+    if (state.reviewerAgentId !== actor.agentId) {
+      throw new AppError("TASK_REVIEW_NOT_ALLOWED", { reason: "not_the_reviewer" });
+    }
+    // Not reconstructed from a log after the fact: who submitted it is written
+    // down when they submit, because guessing gets it wrong.
+    if (row.reviewPolicy === "not_creator" && state.submittedByAgentId === actor.agentId) {
+      throw new AppError("TASK_REVIEW_NOT_ALLOWED", { policy: row.reviewPolicy });
     }
   }
 
@@ -82,6 +96,14 @@ export function createWorkflowService(db: Database) {
       const row = await repo.requireRow(organizationId, taskId);
       if (isTerminalTaskStatus(row.status)) throw new AppError("TASK_TERMINAL");
 
+      // Already there. Submitting again would recompute the implementer as
+      // whoever holds it now — the reviewer — and write them in as the person
+      // to hand a rejection back to, losing the one who actually did the work.
+      if (row.status === "in_review") {
+        const [task] = await repo.hydrate([row]);
+        return { task: task!, wake: [] };
+      }
+
       const previous = (row.reviewStateJson as ReviewState | null) ?? emptyReviewState();
 
       // The creator reviews by default: they asked for it, so they know what
@@ -103,6 +125,11 @@ export function createWorkflowService(db: Database) {
           changesRequestedCount: previous.changesRequestedCount,
         };
         const held = await repo.setStatus(row.id, "in_review", {
+          // Unassigned, and that matters: `in_review` is claimable, so leaving
+          // it on the implementer meant their every later run re-claimed a task
+          // they are forbidden to judge — a paid run achieving nothing, for
+          // ever, while their real work waited behind it.
+          assigneeAgentId: null,
           reviewStateJson: waiting,
           claimedByRunId: null,
           claimedAt: null,

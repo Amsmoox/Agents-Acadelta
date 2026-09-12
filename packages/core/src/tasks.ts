@@ -16,9 +16,9 @@ import {
 import {
   AppError,
   CLAIMABLE_STATUSES,
+  MAX_NO_PROGRESS_RUNS,
   MAX_REVIEW_ROUNDS,
   MAX_TASK_DEPTH,
-  TASK_PRIORITY_RANK,
   isTerminalTaskStatus,
   taskStatusSideEffects,
   type CommentIntent,
@@ -281,6 +281,10 @@ export function createTaskRepository(db: Database) {
         return created;
       });
 
+      // After the insert, and deliberately so: a cycle check needs the row to
+      // exist. A failure here leaves a real task with fewer blockers than
+      // asked for rather than a phantom, so it is reported against the task
+      // rather than swallowed.
       if (input.blockedBy?.length) {
         for (const blockerId of input.blockedBy) {
           await this.addBlocker(organizationId, row.id, blockerId);
@@ -360,7 +364,25 @@ export function createTaskRepository(db: Database) {
 
       if (input.assigneeAgentId) {
         await assertMember(organizationId, existing.projectId, input.assigneeAgentId);
+        // The same guard filing has. Handing a task to an agent that already
+        // owns an open ancestor of it closes the loop just as surely as filing
+        // one would, and this route was the way around it.
+        await assertNoDelegationCycle(organizationId, existing.parentId, input.assigneeAgentId);
       }
+
+      // Moving an in-review task to somebody else changes who is judging it, so
+      // the recorded reviewer moves with it; otherwise the state would name an
+      // agent who no longer holds the task.
+      const reviewState =
+        existing.status === "in_review" && input.assigneeAgentId !== undefined
+          ? {
+              ...((existing.reviewStateJson as ReviewState | null) ?? {
+                status: "pending" as const,
+                changesRequestedCount: 0,
+              }),
+              reviewerAgentId: input.assigneeAgentId,
+            }
+          : null;
 
       const [row] = await db
         .update(tasks)
@@ -373,6 +395,7 @@ export function createTaskRepository(db: Database) {
             ? { assigneeAgentId: input.assigneeAgentId }
             : {}),
           ...(input.reviewPolicy !== undefined ? { reviewPolicy: input.reviewPolicy } : {}),
+          ...(reviewState ? { reviewStateJson: reviewState } : {}),
         })
         .where(eq(tasks.id, existing.id))
         .returning();
@@ -435,7 +458,11 @@ export function createTaskRepository(db: Database) {
      * second-best task is a better outcome than an idle run.
      */
     async claimNextFor(agentId: string, runId: string): Promise<TaskRow | null> {
-      const candidates = await db
+      // Ordered in SQL, because the limit is applied after the sort. Taking the
+      // ten oldest and *then* ranking them meant an agent with ten old tasks
+      // could never reach an urgent one filed this morning — the exact opposite
+      // of what this is for.
+      const ordered = await db
         .select()
         .from(tasks)
         .where(
@@ -445,12 +472,12 @@ export function createTaskRepository(db: Database) {
             sql`(${tasks.claimedByRunId} is null or ${tasks.claimedByRunId} = ${runId}::uuid)`,
           ),
         )
-        .orderBy(asc(tasks.createdAt))
+        .orderBy(
+          sql`case ${tasks.priority}
+                when 'urgent' then 0 when 'high' then 1 when 'normal' then 2 else 3 end`,
+          asc(tasks.createdAt),
+        )
         .limit(10);
-
-      const ordered = [...candidates].sort(
-        (a, b) => TASK_PRIORITY_RANK[a.priority] - TASK_PRIORITY_RANK[b.priority],
-      );
 
       for (const candidate of ordered) {
         const claimed = await this.claim(candidate.id, runId, agentId);
@@ -465,6 +492,74 @@ export function createTaskRepository(db: Database) {
         .update(tasks)
         .set({ claimedByRunId: null, claimedAt: null })
         .where(and(eq(tasks.id, taskId), eq(tasks.claimedByRunId, runId)));
+    },
+
+    /**
+     * Records whether a run got anywhere on the task it held, and stops the
+     * task waking anybody once enough runs in a row have not.
+     *
+     * Progress is deliberately generous: a status change, or a word said about
+     * it. Anything less and the next wake would only buy the same silence.
+     */
+    async noteRunOutcome(
+      organizationId: string,
+      taskId: string,
+      runId: string,
+      statusBefore: TaskStatus,
+    ): Promise<{ stalled: boolean }> {
+      const [row] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
+      if (!row) return { stalled: false };
+
+      const [said] = await db
+        .select({ value: sql<number>`count(*)::int` })
+        .from(taskComments)
+        .where(and(eq(taskComments.taskId, taskId), eq(taskComments.authorRunId, runId)));
+
+      const progressed = row.status !== statusBefore || (said?.value ?? 0) > 0;
+      if (progressed) {
+        await db.update(tasks).set({ noProgressRuns: 0 }).where(eq(tasks.id, taskId));
+        return { stalled: false };
+      }
+
+      const [updated] = await db
+        .update(tasks)
+        .set({ noProgressRuns: sql`${tasks.noProgressRuns} + 1` })
+        .where(eq(tasks.id, taskId))
+        .returning({ count: tasks.noProgressRuns });
+
+      if ((updated?.count ?? 0) < MAX_NO_PROGRESS_RUNS) return { stalled: false };
+      if (isTerminalTaskStatus(row.status) || row.status === "blocked") return { stalled: true };
+
+      await this.setStatus(taskId, "blocked", { claimedByRunId: null, claimedAt: null });
+      await this.comment(
+        organizationId,
+        taskId,
+        `${updated?.count ?? 0} runs in a row ended without moving this or saying anything about it. It needs a person to look.`,
+        "system",
+        { type: "system" },
+      );
+      return { stalled: true };
+    },
+
+    /**
+     * Forgets that a task was stuck.
+     *
+     * A person saying something is new information, which is exactly what the
+     * agent did not have on the five runs that got nowhere.
+     */
+    async clearNoProgress(taskId: string): Promise<void> {
+      await db.update(tasks).set({ noProgressRuns: 0 }).where(eq(tasks.id, taskId));
+    },
+
+    /** Whether waking somebody for this task is still worth the run. */
+    async worthWaking(taskId: string): Promise<boolean> {
+      const [row] = await db
+        .select({ count: tasks.noProgressRuns, status: tasks.status })
+        .from(tasks)
+        .where(eq(tasks.id, taskId))
+        .limit(1);
+      if (!row) return false;
+      return row.count < MAX_NO_PROGRESS_RUNS && !isTerminalTaskStatus(row.status);
     },
 
     async releaseClaimsOfRun(runId: string): Promise<void> {

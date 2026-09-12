@@ -1,0 +1,2 @@
+DROP INDEX "agc_tasks_open_dup_key";--> statement-breakpoint
+CREATE UNIQUE INDEX "agc_tasks_open_dup_key" ON "agc_tasks" USING btree ("project_id",coalesce("parent_id", '00000000-0000-0000-0000-000000000000'::uuid),lower(regexp_replace("title", '\s+', ' ', 'g'))) WHERE status not in ('done', 'cancelled');

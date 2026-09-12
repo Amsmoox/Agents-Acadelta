@@ -86,10 +86,15 @@ export async function registerTaskRoutes(instance: FastifyInstance) {
     async (request) => {
       const org = await orgId(request.params.orgRef);
       const task = await repo.get(org, request.params.taskRef);
+      // The chain comes back with the task. Delegation is the whole shape of
+      // this system, and a page that shows "3 children" as a number you cannot
+      // follow is telling you there is a story and refusing to tell it.
       return {
         ...task,
         comments: await repo.comments(org, task.id),
         decisions: await repo.decisions(org, task.id),
+        parent: task.parentId ? await repo.get(org, task.parentId).catch(() => null) : null,
+        children: await repo.list(org, task.projectId, { limit: 100, parentId: task.id }),
       };
     },
   );
@@ -143,8 +148,11 @@ export async function registerTaskRoutes(instance: FastifyInstance) {
       await repo.comment(org, task.id, request.body.body, request.body.intent, actor);
 
       // A person's comment wakes the agent holding the task; there is nobody
-      // else it could be addressed to.
+      // else it could be addressed to. A person saying something is also the
+      // one thing that makes a stalled task worth another attempt, so the
+      // counter is cleared rather than consulted.
       if (task.assigneeAgentId && task.status !== "done" && task.status !== "cancelled") {
+        await repo.clearNoProgress(task.id);
         await workflow.applyWakes(
           org,
           [{ agentId: task.assigneeAgentId, reason: "task_comment", detail: task.key }],
@@ -161,7 +169,10 @@ export async function registerTaskRoutes(instance: FastifyInstance) {
     async (request) => {
       const org = await activeOrgId(request.params.orgRef);
       const task = await repo.requireRow(org, request.params.taskRef);
-      await repo.addBlocker(org, task.id, request.body.blockerTaskId);
+      // Resolved in this organization first, so a foreign id is "not found"
+      // rather than a foreign key violation.
+      const blocker = await repo.requireRow(org, request.body.blockerTaskId);
+      await repo.addBlocker(org, task.id, blocker.id);
       return repo.get(org, task.id);
     },
   );

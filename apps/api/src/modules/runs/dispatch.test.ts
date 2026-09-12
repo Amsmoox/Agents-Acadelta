@@ -277,6 +277,46 @@ describe.skipIf(!reachable)("dispatch", () => {
   });
 
   describe("recovery", () => {
+    it("makes a reaped run let go of the task it was holding", async () => {
+      // A claim is scoped to a run and claiming requires the slot to be free,
+      // so a run that died without unwinding kept its task away from every
+      // future run — for ever, and without a word.
+      const { projects, tasks: taskTable } = await import("@agentco/db");
+      const [project] = await db
+        .insert(projects)
+        .values({ organizationId: org, name: "P", slug: "p", taskPrefix: "P" })
+        .returning();
+      const [task] = await db
+        .insert(taskTable)
+        .values({
+          organizationId: org,
+          projectId: project!.id,
+          number: 1,
+          key: "P-1",
+          title: "Held",
+          responsibleUserId: "owner",
+          assigneeAgentId: agent,
+          status: "in_progress",
+        })
+        .returning();
+
+      await dispatch.requestWake(org, agent, reason("timer"));
+      const run = await dispatch.claimNext("runner-1", 30);
+      await db
+        .update(taskTable)
+        .set({ claimedByRunId: run!.runId })
+        .where(eq(taskTable.id, task!.id));
+
+      await db
+        .update(agentRuns)
+        .set({ heartbeatAt: new Date(Date.now() - 120_000) })
+        .where(eq(agentRuns.id, run!.runId));
+      await dispatch.reapStale(30);
+
+      const [after] = await db.select().from(taskTable).where(eq(taskTable.id, task!.id));
+      expect(after!.claimedByRunId).toBeNull();
+    });
+
     it("reaps a run whose runner stopped proving it was alive", async () => {
       await dispatch.requestWake(org, agent, reason("timer"));
       const run = await dispatch.claimNext("runner-1", 30);

@@ -202,7 +202,19 @@ async function executeRun(claim: ClaimedRun): Promise<void> {
     // The credential dies with the run, so a token that escaped a crashed child
     // is inert rather than valid for as long as anyone holds it.
     await credentials.revoke(claim.runId);
-    if (claimedTask) await taskRepo.releaseClaim(claimedTask.id, claim.runId);
+    if (claimedTask) {
+      await taskRepo.releaseClaim(claimedTask.id, claim.runId);
+      // Whether this run got anywhere decides whether the task is worth waking
+      // anybody for again. Five silent runs and it stops asking and waits for
+      // a person instead.
+      const { stalled } = await taskRepo.noteRunOutcome(
+        claim.organizationId,
+        claimedTask.id,
+        claim.runId,
+        claimedTask.status,
+      );
+      if (stalled) runLog.warn({ task: claimedTask.key }, "task made no progress; parked");
+    }
 
     if (objective) {
       const ending = await objectiveRepo.endCycle(objective.id, {

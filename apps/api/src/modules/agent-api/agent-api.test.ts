@@ -382,6 +382,82 @@ describe.skipIf(!reachable)("the agent tool surface", () => {
       expect(res.status).toBe(422);
     });
 
+    it("refuses a verdict from an agent that is not the reviewer", async () => {
+      // Without this, any run in the organization could approve any task in
+      // review — including its own work, by submitting under one run and
+      // accepting under the next.
+      const task = await seedTask({ title: "Work", assigneeAgentId: ids["Nadia"] });
+      await startRun("Nadia", task.id);
+      const bug = obj(
+        (await shell("Nadia", ["create", ids["Sam"]!, "standard", "Fix it", "--", "x"])).body[
+          "result"
+        ],
+      );
+
+      await startRun("Sam", str(bug["id"]));
+      await shell("Sam", ["status", str(bug["key"]), "in_review", "--", "done"]);
+
+      // Priya has nothing to do with this task.
+      await startRun("Priya", str(bug["id"]));
+      const res = await shell("Priya", ["status", str(bug["key"]), "done", "--", "Looks fine."]);
+      expect(res.status).toBe(403);
+    });
+
+    it("refuses an agent verdict on work that is waiting for a person", async () => {
+      // A person filed it, so no agent is the reviewer. An agent answering for
+      // the person is the whole thing the gate exists to stop.
+      const task = await seedTask({ title: "Solo", assigneeAgentId: ids["Sam"] });
+      await startRun("Sam", task.id);
+      await shell("Sam", ["status", task.key, "in_review", "--", "Done."]);
+
+      await startRun("Priya", task.id);
+      const res = await shell("Priya", ["status", task.key, "done", "--", "Fine by me."]);
+      expect(res.status).toBe(403);
+    });
+
+    it("does not leave work waiting for a person assigned to the agent that did it", async () => {
+      // `in_review` is claimable, so leaving it on the implementer meant every
+      // later run re-claimed a task they are forbidden to judge.
+      const task = await seedTask({ title: "Solo", assigneeAgentId: ids["Sam"] });
+      await startRun("Sam", task.id);
+      const submitted = obj(
+        (await shell("Sam", ["status", task.key, "in_review", "--", "Done."])).body["result"],
+      );
+      expect(submitted["assigneeAgentId"]).toBeNull();
+    });
+
+    it("refuses to reach a task on another project", async () => {
+      const other = (
+        await app.inject({
+          method: "POST",
+          url: `/organizations/${org}/projects`,
+          payload: { name: "Something Else" },
+        })
+      ).json();
+      const elsewhere = (
+        await app.inject({
+          method: "POST",
+          url: `/organizations/${org}/projects/${other.id}/tasks`,
+          payload: { title: "Not your business" },
+        })
+      ).json();
+
+      const mine = await seedTask({ title: "Mine", assigneeAgentId: ids["Nadia"] });
+      await startRun("Nadia", mine.id);
+
+      // Same organization, different project. There is no command that needs
+      // this, so it answers as though the task is not there.
+      const res = await shell("Nadia", ["task", elsewhere.key]);
+      expect(res.status).toBe(404);
+    });
+
+    it("explains an unknown status instead of failing with a server error", async () => {
+      const task = await seedTask({ title: "Work", assigneeAgentId: ids["Nadia"] });
+      await startRun("Nadia", task.id);
+      const res = await shell("Nadia", ["tasks", "--status=In Progress"]);
+      expect(res.status).toBeLessThan(500);
+    });
+
     it("never lets one organization's run see another's task", async () => {
       const other = (
         await app.inject({ method: "POST", url: "/organizations", payload: { name: "Other" } })

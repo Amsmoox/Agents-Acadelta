@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Mharrech Ayoub <mharrech.ayoub@gmail.com>
 
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   agentRuns,
   agents,
@@ -187,8 +187,22 @@ export function createObjectiveRepository(db: Database) {
         .select({ value: sql<number>`count(*)::int` })
         .from(taskComments)
         .where(eq(taskComments.authorRunId, input.runId));
+      // Finishing something counts, even in silence. A comment is optional on
+      // every move, so a run that closed two tasks and said nothing about them
+      // was being recorded as having achieved nothing — and two of those in a
+      // row ended the objective while it was in fact progressing.
+      const [moved] = await db
+        .select({ value: sql<number>`count(*)::int` })
+        .from(tasks)
+        .where(
+          and(
+            eq(tasks.lastRunId, input.runId),
+            sql`${tasks.status} in ('done', 'cancelled', 'in_review')`,
+          ),
+        );
 
-      const idle = (produced?.value ?? 0) === 0 && (said?.value ?? 0) === 0;
+      const idle =
+        (produced?.value ?? 0) === 0 && (said?.value ?? 0) === 0 && (moved?.value ?? 0) === 0;
 
       const [row] = await db
         .update(objectives)
@@ -316,24 +330,43 @@ export function createObjectiveRepository(db: Database) {
         .where(eq(tasks.objectiveId, objective.id))
         .orderBy(asc(tasks.number));
 
-      const decisions = await db
-        .select({
-          taskId: taskReviewDecisions.taskId,
-          outcome: taskReviewDecisions.outcome,
-          round: taskReviewDecisions.round,
-          body: taskReviewDecisions.body,
-          actor: agents.name,
-        })
-        .from(taskReviewDecisions)
-        .leftJoin(agents, eq(agents.id, taskReviewDecisions.actorAgentId))
-        .where(eq(taskReviewDecisions.organizationId, organizationId))
-        .orderBy(asc(taskReviewDecisions.createdAt));
+      const taskIds = all.map((task) => task.id);
+      const decisions =
+        taskIds.length === 0
+          ? []
+          : await db
+              .select({
+                taskId: taskReviewDecisions.taskId,
+                outcome: taskReviewDecisions.outcome,
+                round: taskReviewDecisions.round,
+                body: taskReviewDecisions.body,
+                actor: agents.name,
+              })
+              .from(taskReviewDecisions)
+              .leftJoin(agents, eq(agents.id, taskReviewDecisions.actorAgentId))
+              // Scoped to this objective's tasks rather than filtered afterwards,
+              // so the query does not read the organization's whole history to
+              // throw nearly all of it away.
+              .where(inArray(taskReviewDecisions.taskId, taskIds))
+              .orderBy(asc(taskReviewDecisions.createdAt));
 
+      // Bounded by the objective's own lifetime. Without the window this
+      // counted every run every agent in the organization had ever done and
+      // presented the total as the cost of this objective.
       const spend = await db
-        .select({ name: agents.name, runs: sql<number>`count(*)::int`, cost: sql<number>`sum(${agentRuns.costCents})::int` })
+        .select({
+          name: agents.name,
+          runs: sql<number>`count(*)::int`,
+          cost: sql<number>`coalesce(sum(${agentRuns.costCents}), 0)::int`,
+        })
         .from(agentRuns)
         .innerJoin(agents, eq(agents.id, agentRuns.agentId))
-        .where(eq(agentRuns.organizationId, organizationId))
+        .where(
+          and(
+            eq(agentRuns.organizationId, organizationId),
+            sql`${agentRuns.createdAt} >= ${objective.createdAt}`,
+          ),
+        )
         .groupBy(agents.name);
 
       const byTask = new Map(all.map((t) => [t.id, t]));
@@ -392,7 +425,7 @@ export function createObjectiveRepository(db: Database) {
         );
       }
 
-      lines.push("", "## Cost");
+      lines.push("", `## Cost, from ${objective.createdAt.toISOString().slice(0, 10)}`);
       for (const row of spend) {
         lines.push(`- ${row.name}: ${row.runs} run${row.runs === 1 ? "" : "s"}, $${((row.cost ?? 0) / 100).toFixed(2)}`);
       }

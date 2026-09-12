@@ -2,16 +2,19 @@
 // SPDX-FileCopyrightText: 2026 Mharrech Ayoub <mharrech.ayoub@gmail.com>
 
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, type FormEvent } from "react";
-import { ArrowLeft, Check, RotateCcw, Send } from "lucide-react";
+import { useEffect, useState, type FormEvent } from "react";
+import { ArrowLeft, Check, Pencil, Plus, RotateCcw, Send, Unlink } from "lucide-react";
 import {
+  TASK_PRIORITIES,
   TASK_STATUS_LABELS,
+  type Task,
   type TaskComment,
+  type TaskPriority,
   type TaskStatus,
 } from "@agentco/shared";
 import { Page, PageHeader } from "@/components/ui/page";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/input";
+import { Input, Textarea } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { Badge, StatusDot, Tag } from "@/components/ui/status";
@@ -28,12 +31,16 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "@/components/ui";
 import {
+  useBoard,
   useCommentOnTask,
   useMoveTask,
   useTask,
+  useTaskBlockers,
+  useUpdateTask,
   type ReviewDecision,
   type TaskDetail,
 } from "@/features/tasks/queries";
+import { useProjectMembers } from "@/features/projects/queries";
 import { INTENT_LABEL, TASK_TONE } from "@/features/tasks/status";
 import { ApiError, firstIssue } from "@/lib/api";
 import { fullDate, timeAgo } from "@/lib/format";
@@ -107,6 +114,7 @@ function TaskPage() {
             <span className="text-faint">{task.assigneeName ?? "nobody"}</span>
           </>
         }
+        actions={<EditTaskDialog org={org} task={task} />}
       />
 
       {waitingOnYou ? (
@@ -118,12 +126,15 @@ function TaskPage() {
 
       {task.blockedBy.some((b) => b.status !== "done") ? (
         <Callout tone="danger" className="mb-4">
-          Waiting on{" "}
-          {task.blockedBy
-            .filter((b) => b.status !== "done")
-            .map((b) => `${b.key} (${b.status})`)
-            .join(", ")}
-          . Only a finished blocker releases it — cancelling one leaves this waiting on purpose.
+          <span>
+            Waiting on{" "}
+            {task.blockedBy
+              .filter((b) => b.status !== "done")
+              .map((b) => `${b.key} (${TASK_STATUS_LABELS[b.status].toLowerCase()})`)
+              .join(", ")}
+            . Only a finished blocker releases this. A cancelled one leaves it waiting on purpose —
+            somebody has to decide what happens instead.
+          </span>
         </Callout>
       ) : null}
 
@@ -140,6 +151,8 @@ function TaskPage() {
 
         <div className="flex flex-col gap-4">
           <Verdict org={org} task={task} />
+          <Chain org={org} task={task} />
+          <Blockers org={org} task={task} />
           <Properties task={task} />
           {task.decisions.length > 0 ? <Decisions decisions={task.decisions} /> : null}
         </div>
@@ -421,5 +434,272 @@ function Decisions({ decisions }: { decisions: ReviewDecision[] }) {
         ))}
       </ol>
     </Card>
+  );
+}
+
+/**
+ * Where this sits in the chain.
+ *
+ * An agent filing a task for another agent is the point of the product, so the
+ * page shows the hop above and the hops below as links rather than as a count.
+ */
+function Chain({ org, task }: { org: string; task: TaskDetail }) {
+  if (!task.parent && task.children.length === 0) return null;
+
+  return (
+    <Card title="Chain">
+      {task.parent ? (
+        <div className="pb-2">
+          <p className="pb-1 text-2xs text-faint">Filed under</p>
+          <TaskLink org={org} task={task.parent} />
+        </div>
+      ) : null}
+
+      {task.children.length > 0 ? (
+        <div>
+          <p className="pb-1 text-2xs text-faint">
+            Filed from this ({task.children.length})
+          </p>
+          <div className="flex flex-col gap-1">
+            {task.children.map((child) => (
+              <TaskLink key={child.id} org={org} task={child} />
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
+function TaskLink({ org, task }: { org: string; task: Task }) {
+  return (
+    <Link
+      to="/organizations/$ref/tasks/$taskKey"
+      params={{ ref: org, taskKey: task.key }}
+      className="flex items-center gap-1.5 rounded-[var(--radius-sm)] px-1 py-0.5 hover:bg-sunken"
+    >
+      <StatusDot tone={TASK_TONE[task.status]} />
+      <span className="machine shrink-0 text-2xs text-faint">{task.key}</span>
+      <span className="min-w-0 flex-1 truncate text-2xs text-ink">{task.title}</span>
+    </Link>
+  );
+}
+
+/**
+ * Declaring and clearing dependencies.
+ *
+ * Removing one is the decision the blocked callout asks for: when a blocker is
+ * cancelled its dependent waits for ever on purpose, and this is where somebody
+ * says what happens instead.
+ */
+function Blockers({ org, task }: { org: string; task: TaskDetail }) {
+  const blockers = useTaskBlockers(org, task.key);
+  const board = useBoard(org, task.projectId);
+  const [adding, setAdding] = useState("");
+  const terminal = task.status === "done" || task.status === "cancelled";
+
+  const candidates = (board.data ?? []).filter(
+    (candidate) =>
+      candidate.id !== task.id &&
+      candidate.status !== "done" &&
+      candidate.status !== "cancelled" &&
+      !task.blockedBy.some((b) => b.id === candidate.id),
+  );
+
+  return (
+    <Card title="Waiting on">
+      {task.blockedBy.length === 0 ? (
+        <p className="text-2xs text-muted">Nothing. This can start whenever somebody picks it up.</p>
+      ) : (
+        <div className="flex flex-col gap-1">
+          {task.blockedBy.map((blocker) => (
+            <div key={blocker.id} className="flex items-center gap-1.5">
+              <StatusDot tone={TASK_TONE[blocker.status]} />
+              <Link
+                to="/organizations/$ref/tasks/$taskKey"
+                params={{ ref: org, taskKey: blocker.key }}
+                className="min-w-0 flex-1 truncate text-2xs text-ink hover:underline"
+              >
+                <span className="machine text-faint">{blocker.key}</span> {blocker.title}
+              </Link>
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={`Stop waiting on ${blocker.key}`}
+                disabled={blockers.remove.isPending}
+                onClick={async () => {
+                  try {
+                    await blockers.remove.mutateAsync(blocker.id);
+                    toast.success("No longer waiting on it");
+                  } catch (failure) {
+                    toast.error(firstIssue(failure) ?? "Could not remove it.");
+                  }
+                }}
+              >
+                <Unlink />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {terminal ? null : (
+        <div className="mt-2 flex items-end gap-1.5">
+          <Select
+            aria-label="Wait on another task"
+            value={adding}
+            onChange={(event) => setAdding(event.target.value)}
+            options={[
+              { value: "", label: "Wait on…" },
+              ...candidates.map((candidate) => ({
+                value: candidate.id,
+                label: `${candidate.key} ${candidate.title}`,
+              })),
+            ]}
+          />
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={!adding || blockers.add.isPending}
+            onClick={async () => {
+              try {
+                await blockers.add.mutateAsync(adding);
+                setAdding("");
+                toast.success("Waiting on it");
+              } catch (failure) {
+                toast.error(firstIssue(failure) ?? "Could not add it.");
+              }
+            }}
+          >
+            <Plus />
+          </Button>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/**
+ * Everything about a task except its status, which has its own control, and its
+ * key, which is permanent.
+ */
+function EditTaskDialog({ org, task }: { org: string; task: TaskDetail }) {
+  const [open, setOpen] = useState(false);
+  const update = useUpdateTask(org, task.key);
+  const members = useProjectMembers(org, task.projectId);
+
+  const [title, setTitle] = useState(task.title);
+  const [description, setDescription] = useState(task.description ?? "");
+  const [priority, setPriority] = useState<TaskPriority>(task.priority);
+  const [assignee, setAssignee] = useState(task.assigneeAgentId ?? "");
+  const [error, setError] = useState<string>();
+
+  useEffect(() => {
+    if (!open) return;
+    setTitle(task.title);
+    setDescription(task.description ?? "");
+    setPriority(task.priority);
+    setAssignee(task.assigneeAgentId ?? "");
+    setError(undefined);
+  }, [open, task]);
+
+  const terminal = task.status === "done" || task.status === "cancelled";
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    setError(undefined);
+    try {
+      await update.mutateAsync({
+        title: title.trim(),
+        description: description.trim() === "" ? null : description.trim(),
+        priority,
+        // Sent only when it changed: reassigning wakes an agent, and saving a
+        // typo in the title should not.
+        ...(assignee !== (task.assigneeAgentId ?? "")
+          ? { assigneeAgentId: assignee === "" ? null : assignee }
+          : {}),
+      });
+      toast.success(assignee !== (task.assigneeAgentId ?? "") ? "Reassigned" : "Saved");
+      setOpen(false);
+    } catch (failure) {
+      setError(firstIssue(failure) ?? "Could not save.");
+    }
+  }
+
+  return (
+    <DialogRoot open={open} onOpenChange={setOpen}>
+      <DialogTrigger
+        render={
+          <Button variant="secondary" size="md" disabled={terminal}>
+            <Pencil />
+            Edit
+          </Button>
+        }
+      />
+      <DialogPanel title="Edit task" description="Its key never changes; everything else can." className="max-w-120">
+        <form onSubmit={onSubmit}>
+          <DialogBody className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto">
+            <Field label="Title" error={error}>
+              {(props) => (
+                <Input
+                  {...props}
+                  value={title}
+                  maxLength={200}
+                  onChange={(event) => setTitle(event.target.value)}
+                />
+              )}
+            </Field>
+
+            <Field label="Detail" optional>
+              {(props) => (
+                <Textarea
+                  {...props}
+                  value={description}
+                  rows={5}
+                  maxLength={20_000}
+                  onChange={(event) => setDescription(event.target.value)}
+                />
+              )}
+            </Field>
+
+            <Field label="Priority">
+              {(props) => (
+                <Select
+                  {...props}
+                  value={priority}
+                  onChange={(event) => setPriority(event.target.value as TaskPriority)}
+                  options={TASK_PRIORITIES.map((value) => ({ value, label: value }))}
+                />
+              )}
+            </Field>
+
+            <Field label="Assigned to" hint="Changing this wakes the agent you move it to.">
+              {(props) => (
+                <Select
+                  {...props}
+                  value={assignee}
+                  onChange={(event) => setAssignee(event.target.value)}
+                  options={[
+                    { value: "", label: "Nobody" },
+                    ...(members.data ?? []).map((member) => ({
+                      value: member.agentId,
+                      label: member.name,
+                    })),
+                  ]}
+                />
+              )}
+            </Field>
+          </DialogBody>
+
+          <DialogFooter>
+            <DialogClose render={<Button variant="ghost" size="md" type="button">Cancel</Button>} />
+            <Button variant="primary" size="md" type="submit" disabled={!title.trim() || update.isPending}>
+              {update.isPending ? <Spinner className="border-t-inverse" /> : null}
+              Save
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogPanel>
+    </DialogRoot>
   );
 }

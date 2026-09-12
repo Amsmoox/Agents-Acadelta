@@ -216,6 +216,66 @@ describe.skipIf(!reachable)("tasks API", () => {
     });
   });
 
+  describe("guards that only show up under load", () => {
+    it("refuses a second open task with the same title at the root", async () => {
+      // Every task a person files sits at the root with a null parent, and
+      // NULLs compare as distinct in a unique index — so the one group this
+      // was most needed for was the one group it never covered.
+      await create({ title: "Fix the login bug" });
+      const again = await create({ title: "fix   the LOGIN bug" });
+      expect(again.statusCode).toBe(409);
+    });
+
+    it("picks up an urgent task ahead of older ordinary ones", async () => {
+      // The candidate list is limited, so ordering after the limit meant an
+      // agent with a backlog could never reach anything filed today.
+      const { createTaskRepository } = await import("@agentco/core");
+      const { createDatabase } = await import("@agentco/db");
+      const connection = createDatabase(TEST_DATABASE_URL, 2);
+      const repo = createTaskRepository(connection.db);
+
+      for (let i = 0; i < 12; i += 1) {
+        await create({ title: `Old ${i}`, assigneeAgentId: agentIds["Sam"], priority: "normal" });
+      }
+      const urgent = (
+        await create({ title: "Urgent thing", assigneeAgentId: agentIds["Sam"], priority: "urgent" })
+      ).json();
+
+      const claimed = await repo.claimNextFor(
+        agentIds["Sam"]!,
+        "01a09999-0000-7000-8000-00000000abcd",
+      );
+      expect(claimed?.key).toBe(urgent.key);
+      await connection.close();
+    });
+
+    it("refuses to hand a task back up its own chain", async () => {
+      // The assign route skipped the guard the create route has, so this was
+      // the way around the delegation-cycle check.
+      const top = (await create({ title: "Top", assigneeAgentId: agentIds["Nadia"] })).json();
+      const mid = (
+        await create({ title: "Middle", parentId: top.id, assigneeAgentId: agentIds["Priya"] })
+      ).json();
+
+      const res = await app.inject({
+        method: "PATCH",
+        url: `/organizations/${org}/tasks/${mid.key}`,
+        payload: { assigneeAgentId: agentIds["Nadia"] },
+      });
+      expect(res.statusCode).toBe(422);
+      expect(res.json().error.code).toBe("AGC-6006");
+    });
+
+    it("does not lose the implementer when work is submitted twice", async () => {
+      // Submitting again recomputed the implementer as whoever holds it — the
+      // reviewer — and wrote them in as the person a rejection goes back to.
+      const task = (await create({ title: "Work", assigneeAgentId: agentIds["Sam"] })).json();
+      await move(task.key, { status: "in_review" });
+      const again = (await move(task.key, { status: "in_review" })).json();
+      expect(again.reviewState.returnAssigneeAgentId).toBe(agentIds["Sam"]);
+    });
+  });
+
   describe("dependencies", () => {
     it("blocks a dependent until its blocker is done, and only done", async () => {
       const api = (await create({ title: "API", assigneeAgentId: agentIds["Sam"] })).json();
@@ -284,6 +344,74 @@ describe.skipIf(!reachable)("tasks API", () => {
     });
   });
 
+  describe("what a person can always do", () => {
+    // Everything here had a route and no way to reach it from the product,
+    // which is the same as not having it.
+    it("reassigns a task, and says so in the thread", async () => {
+      const task = (await create({ title: "Work", assigneeAgentId: agentIds["Sam"] })).json();
+      const moved = (
+        await app.inject({
+          method: "PATCH",
+          url: `/organizations/${org}/tasks/${task.key}`,
+          payload: { assigneeAgentId: agentIds["Priya"] },
+        })
+      ).json();
+
+      expect(moved.assigneeAgentId).toBe(agentIds["Priya"]);
+      const full = await read(task.key);
+      expect(full.comments.some((c: { intent: string }) => c.intent === "handoff")).toBe(true);
+    });
+
+    it("edits a task without touching who has it", async () => {
+      const task = (await create({ title: "Typo", assigneeAgentId: agentIds["Sam"] })).json();
+      const edited = (
+        await app.inject({
+          method: "PATCH",
+          url: `/organizations/${org}/tasks/${task.key}`,
+          payload: { title: "Fixed", priority: "urgent" },
+        })
+      ).json();
+
+      expect(edited.title).toBe("Fixed");
+      expect(edited.priority).toBe("urgent");
+      expect(edited.assigneeAgentId).toBe(agentIds["Sam"]);
+    });
+
+    it("clears a dependency, which is the decision a cancelled blocker forces", async () => {
+      const blocker = (await create({ title: "Blocker" })).json();
+      const dependent = (await create({ title: "Dependent", assigneeAgentId: agentIds["Sam"] })).json();
+      await app.inject({
+        method: "POST",
+        url: `/organizations/${org}/tasks/${dependent.key}/blockers`,
+        payload: { blockerTaskId: blocker.id },
+      });
+      await move(blocker.key, { status: "cancelled" });
+      expect((await read(dependent.key)).status).toBe("blocked");
+
+      // Somebody decides it goes ahead anyway.
+      await app.inject({
+        method: "DELETE",
+        url: `/organizations/${org}/tasks/${dependent.key}/blockers/${blocker.id}`,
+      });
+      const after = await read(dependent.key);
+      expect(after.status).toBe("todo");
+      expect(after.blockedBy).toHaveLength(0);
+    });
+
+    it("returns the chain with the task, so it can be walked", async () => {
+      const parent = (await create({ title: "Parent" })).json();
+      await create({ title: "Child one", parentId: parent.id });
+      await create({ title: "Child two", parentId: parent.id });
+
+      const full = await read(parent.key);
+      expect(full.children).toHaveLength(2);
+      expect(full.parent).toBeNull();
+
+      const child = await read(full.children[0].key);
+      expect(child.parent.key).toBe(parent.key);
+    });
+  });
+
   describe("a standing objective", () => {
     const objective = (payload: Record<string, unknown>) =>
       app.inject({
@@ -332,6 +460,27 @@ describe.skipIf(!reachable)("tasks API", () => {
       expect(report.description).toContain("Still open");
       // And the person's words, not a paraphrase of them.
       expect(report.description).toContain("Keep going until checkout is clean.");
+    });
+
+    it("pauses and resumes without writing anything off", async () => {
+      const created = (await objective({})).json();
+      const paused = (
+        await app.inject({
+          method: "POST",
+          url: `/organizations/${org}/objectives/${created.id}/pause`,
+        })
+      ).json();
+      expect(paused.status).toBe("paused");
+      // Pausing is reversible and produces no report: nothing has ended.
+      expect(paused.reportTaskId).toBeNull();
+
+      const resumed = (
+        await app.inject({
+          method: "POST",
+          url: `/organizations/${org}/objectives/${created.id}/resume`,
+        })
+      ).json();
+      expect(resumed.status).toBe("active");
     });
 
     it("counts the work filed under it", async () => {

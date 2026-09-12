@@ -3,7 +3,7 @@
 
 import { Link } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
-import { Flag, Square } from "lucide-react";
+import { Flag, Pause, Play, Square } from "lucide-react";
 import type { Objective, Project } from "@agentco/shared";
 import { Button } from "@/components/ui/button";
 import { Textarea, Input } from "@/components/ui/input";
@@ -99,6 +99,44 @@ function Row({ org, objective }: { org: string; objective: Objective }) {
             >
               Read the report
             </Link>
+          ) : null}
+          {/* Pausing is the reversible half of stopping: the agent stops being
+              woken, nothing is written off, and resuming picks it back up. */}
+          {objective.status === "active" ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={action.isPending}
+              onClick={async () => {
+                try {
+                  await action.mutateAsync({ id: objective.id, action: "pause" });
+                  toast.success("Paused");
+                } catch (failure) {
+                  toast.error(firstIssue(failure) ?? "Could not pause it.");
+                }
+              }}
+            >
+              <Pause />
+              Pause
+            </Button>
+          ) : null}
+          {objective.status === "paused" ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={action.isPending}
+              onClick={async () => {
+                try {
+                  await action.mutateAsync({ id: objective.id, action: "resume" });
+                  toast.success("Resumed");
+                } catch (failure) {
+                  toast.error(firstIssue(failure) ?? "Could not resume it.");
+                }
+              }}
+            >
+              <Play />
+              Resume
+            </Button>
           ) : null}
           {live ? (
             <Button
