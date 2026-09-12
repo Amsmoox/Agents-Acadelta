@@ -128,6 +128,68 @@ export const ERRORS = {
     status: 409,
     message: "AGENTS.md is the entry file and cannot be deleted.",
   },
+  // 6xxx — work
+  TASK_NOT_FOUND: { code: 6001, status: 404, message: "Task not found." },
+  TASK_DUPLICATE: {
+    code: 6002,
+    status: 409,
+    message: "An open task with that title already exists here.",
+  },
+  TASK_CLAIM_CONFLICT: {
+    code: 6003,
+    status: 409,
+    message: "Another run is already working on this task.",
+  },
+  TASK_TERMINAL: { code: 6004, status: 409, message: "That task is already finished." },
+  TASK_DEPTH_EXCEEDED: {
+    code: 6005,
+    status: 422,
+    message: "This delegation chain is too deep. Something is looping.",
+  },
+  TASK_DELEGATION_CYCLE: {
+    code: 6006,
+    status: 422,
+    message: "That agent already owns an open task in this chain, so this would loop.",
+  },
+  TASK_ASSIGNEE_NOT_MEMBER: {
+    code: 6007,
+    status: 422,
+    message: "That agent is not on this project.",
+  },
+  TASK_REVIEW_COMMENT_REQUIRED: {
+    code: 6008,
+    status: 422,
+    message: "A review verdict needs a reason. Say what you checked, or what to change.",
+  },
+  TASK_REVIEW_NOT_ALLOWED: {
+    code: 6009,
+    status: 403,
+    message: "You cannot cast the verdict on this task.",
+  },
+  TASK_DEPENDENCY_CYCLE: {
+    code: 6010,
+    status: 422,
+    message: "That would make two tasks wait for each other.",
+  },
+  CROSS_TASK_LIMIT: {
+    code: 6011,
+    status: 429,
+    message: "This run has changed as many other tasks as it may. Finish, and continue next run.",
+  },
+  RUN_CREDENTIAL_INVALID: {
+    code: 6012,
+    status: 401,
+    message: "That run credential is not valid.",
+  },
+  OBJECTIVE_NOT_FOUND: { code: 6013, status: 404, message: "Objective not found." },
+  OBJECTIVE_ALREADY_ACTIVE: {
+    code: 6014,
+    status: 409,
+    message: "That agent already carries an objective on this project.",
+  },
+  OBJECTIVE_NOT_ACTIVE: { code: 6015, status: 409, message: "That objective has finished." },
+  TASK_NOT_IN_REVIEW: { code: 6016, status: 409, message: "That task is not in review." },
+
   // 5xxx - execution
   RUN_NOT_FOUND: { code: 5001, status: 404, message: "Run not found." },
   RUN_NOT_ACTIVE: { code: 5002, status: 409, message: "That run has already finished." },

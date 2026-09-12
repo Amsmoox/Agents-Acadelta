@@ -43,6 +43,20 @@
       "when": 1789247459501,
       "tag": "0005_military_psynapse",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789249689719,
+      "tag": "0006_broad_wolf_cub",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789250041361,
+      "tag": "0007_sloppy_clint_barton",
+      "breakpoints": true
     }
   ]
 }
