@@ -31,7 +31,13 @@ import {
   useUpdateAgent,
   type AgentDetail,
 } from "@/features/agents/queries";
-import { STATUS_LABEL, STATUS_TONE, chainProblem, pauseExplanation } from "@/features/agents/status";
+import {
+  STATUS_LABEL,
+  STATUS_TONE,
+  chainProblem,
+  eligibilityExplanation,
+  pauseExplanation,
+} from "@/features/agents/status";
 import { ApiError, firstIssue } from "@/lib/api";
 import { fullDate, timeAgo } from "@/lib/format";
 
@@ -286,7 +292,7 @@ function Overview({ agent }: { org: string; agent: AgentDetail }) {
           <DescriptionRow label="Reports to" value={agent.manager?.name ?? "No manager"} />
           <DescriptionRow
             label="Can be assigned work"
-            value={agent.eligibility.assignable ? "Yes" : "No"}
+            value={eligibilityExplanation(agent.eligibility, agent.status) ?? "Yes"}
           />
         </DescriptionList>
       </Card>

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Mharrech Ayoub <mharrech.ayoub@gmail.com>
 
-import type { AgentStatus, OrgChainHealth } from "@agentco/shared";
+import type { AgentEligibility, AgentStatus, OrgChainHealth } from "@agentco/shared";
 import type { Tone } from "@/components/ui/status";
 
 /** One mapping from status to tone, imported everywhere. Never re-derived. */
@@ -54,5 +54,28 @@ export function chainProblem(health: OrgChainHealth): string | null {
       return "This agent's manager no longer exists.";
     case "terminated_ancestor":
       return `${health.agentName} was terminated, so this agent has no working escalation path.`;
+  }
+}
+
+/**
+ * Why an agent cannot be given work.
+ *
+ * The overview used to answer "Can be assigned work" with a bare "No", which
+ * tells you there is a problem and nothing about which one — and the two causes
+ * need opposite responses: one is a status you can change here, the other is a
+ * broken reporting line somewhere else entirely.
+ */
+export function eligibilityExplanation(
+  eligibility: AgentEligibility,
+  status: AgentStatus,
+): string | null {
+  if (eligibility.assignable) return null;
+  switch (eligibility.reason) {
+    case "invalid_org_chain":
+      return "No — its reporting line is broken.";
+    case "status":
+      return `No — it is ${STATUS_LABEL[status].toLowerCase()}.`;
+    default:
+      return "No.";
   }
 }
