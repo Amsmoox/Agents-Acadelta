@@ -43,6 +43,16 @@ describe("destinationAfterSwitch", () => {
     expect(destinationAfterSwitch("/", "beta")).toBe("/organizations/beta");
   });
 
+  it("keeps you on Projects but drops the project you were looking at", () => {
+    // A project slug means nothing in another tenant.
+    expect(destinationAfterSwitch("/organizations/acme/projects", "beta")).toBe(
+      "/organizations/beta/projects",
+    );
+    expect(destinationAfterSwitch("/organizations/acme/projects/atlas", "beta")).toBe(
+      "/organizations/beta/projects",
+    );
+  });
+
   it("keeps you on Activity when you switch from Activity", () => {
     expect(destinationAfterSwitch("/organizations/acme/activity", "beta")).toBe(
       "/organizations/beta/activity",

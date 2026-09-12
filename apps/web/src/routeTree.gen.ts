@@ -18,6 +18,8 @@ import { Route as OrganizationsRefActivityRouteImport } from './routes/organizat
 import { Route as OrganizationsRefAgentsIndexRouteImport } from './routes/organizations/$ref/agents/index'
 import { Route as OrganizationsRefAgentsAgentRefRouteImport } from './routes/organizations/$ref/agents/$agentRef'
 import { Route as OrganizationsRefAgentsNewRouteImport } from './routes/organizations/$ref/agents/new'
+import { Route as OrganizationsRefProjectsIndexRouteImport } from './routes/organizations/$ref/projects/index'
+import { Route as OrganizationsRefProjectsProjectRefRouteImport } from './routes/organizations/$ref/projects/$projectRef'
 import { Route as OrganizationsRefSkillsIndexRouteImport } from './routes/organizations/$ref/skills/index'
 import { Route as OrganizationsRefSkillsSkillRefRouteImport } from './routes/organizations/$ref/skills/$skillRef'
 
@@ -70,6 +72,18 @@ const OrganizationsRefAgentsNewRoute =
     path: '/organizations/$ref/agents/new',
     getParentRoute: () => rootRouteImport,
   } as any)
+const OrganizationsRefProjectsIndexRoute =
+  OrganizationsRefProjectsIndexRouteImport.update({
+    id: '/organizations/$ref/projects/',
+    path: '/organizations/$ref/projects/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const OrganizationsRefProjectsProjectRefRoute =
+  OrganizationsRefProjectsProjectRefRouteImport.update({
+    id: '/organizations/$ref/projects/$projectRef',
+    path: '/organizations/$ref/projects/$projectRef',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const OrganizationsRefSkillsIndexRoute =
   OrganizationsRefSkillsIndexRouteImport.update({
     id: '/organizations/$ref/skills/',
@@ -92,8 +106,10 @@ export interface FileRoutesByFullPath {
   '/organizations/$ref/': typeof OrganizationsRefIndexRoute
   '/organizations/$ref/agents/$agentRef': typeof OrganizationsRefAgentsAgentRefRoute
   '/organizations/$ref/agents/new': typeof OrganizationsRefAgentsNewRoute
+  '/organizations/$ref/projects/$projectRef': typeof OrganizationsRefProjectsProjectRefRoute
   '/organizations/$ref/skills/$skillRef': typeof OrganizationsRefSkillsSkillRefRoute
   '/organizations/$ref/agents/': typeof OrganizationsRefAgentsIndexRoute
+  '/organizations/$ref/projects/': typeof OrganizationsRefProjectsIndexRoute
   '/organizations/$ref/skills/': typeof OrganizationsRefSkillsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -105,8 +121,10 @@ export interface FileRoutesByTo {
   '/organizations/$ref': typeof OrganizationsRefIndexRoute
   '/organizations/$ref/agents/$agentRef': typeof OrganizationsRefAgentsAgentRefRoute
   '/organizations/$ref/agents/new': typeof OrganizationsRefAgentsNewRoute
+  '/organizations/$ref/projects/$projectRef': typeof OrganizationsRefProjectsProjectRefRoute
   '/organizations/$ref/skills/$skillRef': typeof OrganizationsRefSkillsSkillRefRoute
   '/organizations/$ref/agents': typeof OrganizationsRefAgentsIndexRoute
+  '/organizations/$ref/projects': typeof OrganizationsRefProjectsIndexRoute
   '/organizations/$ref/skills': typeof OrganizationsRefSkillsIndexRoute
 }
 export interface FileRoutesById {
@@ -119,8 +137,10 @@ export interface FileRoutesById {
   '/organizations/$ref/': typeof OrganizationsRefIndexRoute
   '/organizations/$ref/agents/$agentRef': typeof OrganizationsRefAgentsAgentRefRoute
   '/organizations/$ref/agents/new': typeof OrganizationsRefAgentsNewRoute
+  '/organizations/$ref/projects/$projectRef': typeof OrganizationsRefProjectsProjectRefRoute
   '/organizations/$ref/skills/$skillRef': typeof OrganizationsRefSkillsSkillRefRoute
   '/organizations/$ref/agents/': typeof OrganizationsRefAgentsIndexRoute
+  '/organizations/$ref/projects/': typeof OrganizationsRefProjectsIndexRoute
   '/organizations/$ref/skills/': typeof OrganizationsRefSkillsIndexRoute
 }
 export interface FileRouteTypes {
@@ -134,8 +154,10 @@ export interface FileRouteTypes {
     | '/organizations/$ref/'
     | '/organizations/$ref/agents/$agentRef'
     | '/organizations/$ref/agents/new'
+    | '/organizations/$ref/projects/$projectRef'
     | '/organizations/$ref/skills/$skillRef'
     | '/organizations/$ref/agents/'
+    | '/organizations/$ref/projects/'
     | '/organizations/$ref/skills/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -147,8 +169,10 @@ export interface FileRouteTypes {
     | '/organizations/$ref'
     | '/organizations/$ref/agents/$agentRef'
     | '/organizations/$ref/agents/new'
+    | '/organizations/$ref/projects/$projectRef'
     | '/organizations/$ref/skills/$skillRef'
     | '/organizations/$ref/agents'
+    | '/organizations/$ref/projects'
     | '/organizations/$ref/skills'
   id:
     | '__root__'
@@ -160,8 +184,10 @@ export interface FileRouteTypes {
     | '/organizations/$ref/'
     | '/organizations/$ref/agents/$agentRef'
     | '/organizations/$ref/agents/new'
+    | '/organizations/$ref/projects/$projectRef'
     | '/organizations/$ref/skills/$skillRef'
     | '/organizations/$ref/agents/'
+    | '/organizations/$ref/projects/'
     | '/organizations/$ref/skills/'
   fileRoutesById: FileRoutesById
 }
@@ -174,8 +200,10 @@ export interface RootRouteChildren {
   OrganizationsRefIndexRoute: typeof OrganizationsRefIndexRoute
   OrganizationsRefAgentsAgentRefRoute: typeof OrganizationsRefAgentsAgentRefRoute
   OrganizationsRefAgentsNewRoute: typeof OrganizationsRefAgentsNewRoute
+  OrganizationsRefProjectsProjectRefRoute: typeof OrganizationsRefProjectsProjectRefRoute
   OrganizationsRefSkillsSkillRefRoute: typeof OrganizationsRefSkillsSkillRefRoute
   OrganizationsRefAgentsIndexRoute: typeof OrganizationsRefAgentsIndexRoute
+  OrganizationsRefProjectsIndexRoute: typeof OrganizationsRefProjectsIndexRoute
   OrganizationsRefSkillsIndexRoute: typeof OrganizationsRefSkillsIndexRoute
 }
 
@@ -244,6 +272,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OrganizationsRefAgentsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/organizations/$ref/projects/': {
+      id: '/organizations/$ref/projects/'
+      path: '/organizations/$ref/projects'
+      fullPath: '/organizations/$ref/projects/'
+      preLoaderRoute: typeof OrganizationsRefProjectsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/organizations/$ref/projects/$projectRef': {
+      id: '/organizations/$ref/projects/$projectRef'
+      path: '/organizations/$ref/projects/$projectRef'
+      fullPath: '/organizations/$ref/projects/$projectRef'
+      preLoaderRoute: typeof OrganizationsRefProjectsProjectRefRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/organizations/$ref/skills/': {
       id: '/organizations/$ref/skills/'
       path: '/organizations/$ref/skills'
@@ -270,8 +312,11 @@ const rootRouteChildren: RootRouteChildren = {
   OrganizationsRefIndexRoute: OrganizationsRefIndexRoute,
   OrganizationsRefAgentsAgentRefRoute: OrganizationsRefAgentsAgentRefRoute,
   OrganizationsRefAgentsNewRoute: OrganizationsRefAgentsNewRoute,
+  OrganizationsRefProjectsProjectRefRoute:
+    OrganizationsRefProjectsProjectRefRoute,
   OrganizationsRefSkillsSkillRefRoute: OrganizationsRefSkillsSkillRefRoute,
   OrganizationsRefAgentsIndexRoute: OrganizationsRefAgentsIndexRoute,
+  OrganizationsRefProjectsIndexRoute: OrganizationsRefProjectsIndexRoute,
   OrganizationsRefSkillsIndexRoute: OrganizationsRefSkillsIndexRoute,
 }
 export const routeTree = rootRouteImport
