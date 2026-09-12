@@ -9,6 +9,8 @@ import { createDatabase } from "@agentco/db";
 import { PROJECT, PROVENANCE_HEADER } from "@agentco/shared";
 import type { Env } from "./env.js";
 import { registerHealthRoutes } from "./routes/health.js";
+import { registerOrganizationRoutes } from "./modules/organizations/routes.js";
+import { registerErrorHandler } from "./error-handler.js";
 
 export type AppContext = {
   app: FastifyInstance;
@@ -39,7 +41,10 @@ export async function buildApp(env: Env): Promise<AppContext> {
   const database = createDatabase(env.DATABASE_URL);
   app.decorate("db", database.db);
 
+  registerErrorHandler(app);
+
   await app.register(registerHealthRoutes, { pool: database.pool });
+  await app.register(registerOrganizationRoutes);
 
   return {
     app,
