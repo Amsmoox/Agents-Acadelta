@@ -12,6 +12,7 @@ import {
   type UpdateOrganizationInput,
 } from "@agentco/shared";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UNIQUE_VIOLATION = "23505";
 const MAX_SLUG_ATTEMPTS = 6;
 
@@ -49,26 +50,28 @@ function toOrganization(row: OrganizationRow): Organization {
 }
 
 /**
- * Keyset cursors carry the exact sort key of the last row seen, so a page never
- * skips or repeats a row when the table is written to between requests — which
- * OFFSET cannot promise.
+ * Keyset cursors carry the last row seen, so a page never skips or repeats a
+ * row when the table is written to between requests — which OFFSET cannot
+ * promise.
+ *
+ * The cursor holds the row id alone, and the sort key is read back from the row
+ * itself. Carrying the timestamp through the cursor looked simpler but lost
+ * rows: PostgreSQL keeps `timestamptz` to microseconds while a JavaScript Date
+ * only holds milliseconds, so the value that came back was slightly older than
+ * the row it came from, and every row sharing that millisecond was skipped.
  */
 function encodeCursor(row: OrganizationRow): string {
-  return Buffer.from(`${row.createdAt.toISOString()}|${row.id}`, "utf8").toString("base64url");
+  return Buffer.from(row.id, "utf8").toString("base64url");
 }
 
-function decodeCursor(cursor: string): { createdAt: Date; id: string } {
-  const raw = Buffer.from(cursor, "base64url").toString("utf8");
-  const sep = raw.lastIndexOf("|");
-  const createdAt = new Date(raw.slice(0, sep));
-  const id = raw.slice(sep + 1);
-  if (sep === -1 || Number.isNaN(createdAt.getTime()) || id.length === 0) {
+function decodeCursor(cursor: string): string {
+  const id = Buffer.from(cursor, "base64url").toString("utf8");
+  if (!UUID_RE.test(id)) {
     throw new AppError("VALIDATION_FAILED", { cursor: "Cursor is not valid." });
   }
-  return { createdAt, id };
+  return id;
 }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function createOrganizationRepository(db: Database) {
   async function insertOnce(values: {
@@ -140,9 +143,14 @@ export function createOrganizationRepository(db: Database) {
       const filters = [];
       if (query.status) filters.push(eq(organizations.status, query.status));
       if (query.cursor) {
-        const { createdAt, id } = decodeCursor(query.cursor);
+        const id = decodeCursor(query.cursor);
+        // Compared against the stored row, at full precision, rather than
+        // against a value that has been through a JavaScript Date.
         filters.push(
-          sql`(${organizations.createdAt}, ${organizations.id}) < (${createdAt.toISOString()}::timestamptz, ${id}::uuid)`,
+          sql`(${organizations.createdAt}, ${organizations.id}) < (
+            select ${organizations.createdAt}, ${organizations.id}
+            from ${organizations} where ${organizations.id} = ${id}::uuid
+          )`,
         );
       }
 
