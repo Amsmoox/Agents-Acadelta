@@ -13,5 +13,8 @@
     "typescript": "^6.0.3"
   },
   "license": "MIT",
-  "author": "Mharrech Ayoub <mharrech.ayoub@gmail.com>"
+  "author": "Mharrech Ayoub <mharrech.ayoub@gmail.com>",
+  "dependencies": {
+    "zod": "^4.6.2"
+  }
 }
