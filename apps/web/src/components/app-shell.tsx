@@ -3,7 +3,7 @@
 
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
-import { Building2, Bot, ListChecks, Moon, Sun } from "lucide-react";
+import { Building2, Bot, Library, ListChecks, Moon, Sun } from "lucide-react";
 import { applyTheme, readTheme, type Theme } from "@/lib/theme";
 import { OrganizationSwitcher } from "@/components/organization-switcher";
 import { useCurrentOrganization } from "@/features/organizations/current-organization";
@@ -109,6 +109,23 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span aria-disabled title="Choose an organization first" className={navDisabled}>
               <Bot className="size-3.5" />
               Agents
+            </span>
+          )}
+
+          {org ? (
+            <Link
+              to="/organizations/$ref/skills"
+              params={{ ref: org }}
+              className={navLink}
+              activeProps={{ className: navActive }}
+            >
+              <Library className="size-3.5" />
+              Skills
+            </Link>
+          ) : (
+            <span aria-disabled title="Choose an organization first" className={navDisabled}>
+              <Library className="size-3.5" />
+              Skills
             </span>
           )}
 

@@ -15,6 +15,8 @@ import { List, ListRow } from "@/components/ui/list";
 import { MenuContent, MenuItem, MenuRoot, MenuTrigger } from "@/components/ui/menu";
 import { AdapterConfigForm } from "@/components/adapter-config-form";
 import { AdapterIcon } from "@/components/adapter-icon";
+import { InstructionsTab } from "@/features/agents/instructions-tab";
+import { SkillsTab } from "@/features/agents/skills-tab";
 import {
   useAdapters,
   useAgent,
@@ -31,12 +33,13 @@ import { fullDate, timeAgo } from "@/lib/format";
 export const Route = createFileRoute("/organizations/$ref/agents/$agentRef")({
   validateSearch: (search: Record<string, unknown>): { tab?: Tab } => {
     const tab = search["tab"];
-    return tab === "harness" || tab === "governance" ? { tab } : {};
+    const known: Tab[] = ["instructions", "skills", "harness", "governance"];
+    return known.includes(tab as Tab) ? { tab: tab as Tab } : {};
   },
   component: AgentDetailPage,
 });
 
-type Tab = "overview" | "harness" | "governance";
+type Tab = "overview" | "instructions" | "skills" | "harness" | "governance";
 
 function AgentDetailPage() {
   const { ref: org, agentRef: ref } = Route.useParams();
@@ -143,8 +146,11 @@ function AgentDetailPage() {
               replace: true,
             })
           }
+          // Who it is, what it knows, how it runs, who controls it.
           options={[
             { value: "overview" as Tab, label: "Overview" },
+            { value: "instructions" as Tab, label: "Instructions" },
+            { value: "skills" as Tab, label: "Skills" },
             { value: "harness" as Tab, label: "Harness" },
             { value: "governance" as Tab, label: "Governance" },
           ]}
@@ -152,6 +158,8 @@ function AgentDetailPage() {
       </div>
 
       {tab === "overview" ? <Overview org={org} agent={agent} /> : null}
+      {tab === "instructions" ? <InstructionsTab org={org} agent={agent.slug} /> : null}
+      {tab === "skills" ? <SkillsTab org={org} agent={agent.slug} /> : null}
       {tab === "harness" ? <Harness org={org} agent={agent} /> : null}
       {tab === "governance" ? <Governance org={org} agent={agent} /> : null}
     </Page>

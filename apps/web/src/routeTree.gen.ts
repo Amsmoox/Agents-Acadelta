@@ -17,6 +17,8 @@ import { Route as OrganizationsRefIndexRouteImport } from './routes/organization
 import { Route as OrganizationsRefAgentsIndexRouteImport } from './routes/organizations/$ref/agents/index'
 import { Route as OrganizationsRefAgentsAgentRefRouteImport } from './routes/organizations/$ref/agents/$agentRef'
 import { Route as OrganizationsRefAgentsNewRouteImport } from './routes/organizations/$ref/agents/new'
+import { Route as OrganizationsRefSkillsIndexRouteImport } from './routes/organizations/$ref/skills/index'
+import { Route as OrganizationsRefSkillsSkillRefRouteImport } from './routes/organizations/$ref/skills/$skillRef'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -61,6 +63,18 @@ const OrganizationsRefAgentsNewRoute =
     path: '/organizations/$ref/agents/new',
     getParentRoute: () => rootRouteImport,
   } as any)
+const OrganizationsRefSkillsIndexRoute =
+  OrganizationsRefSkillsIndexRouteImport.update({
+    id: '/organizations/$ref/skills/',
+    path: '/organizations/$ref/skills/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const OrganizationsRefSkillsSkillRefRoute =
+  OrganizationsRefSkillsSkillRefRouteImport.update({
+    id: '/organizations/$ref/skills/$skillRef',
+    path: '/organizations/$ref/skills/$skillRef',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -70,7 +84,9 @@ export interface FileRoutesByFullPath {
   '/organizations/$ref/': typeof OrganizationsRefIndexRoute
   '/organizations/$ref/agents/$agentRef': typeof OrganizationsRefAgentsAgentRefRoute
   '/organizations/$ref/agents/new': typeof OrganizationsRefAgentsNewRoute
+  '/organizations/$ref/skills/$skillRef': typeof OrganizationsRefSkillsSkillRefRoute
   '/organizations/$ref/agents/': typeof OrganizationsRefAgentsIndexRoute
+  '/organizations/$ref/skills/': typeof OrganizationsRefSkillsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -80,7 +96,9 @@ export interface FileRoutesByTo {
   '/organizations/$ref': typeof OrganizationsRefIndexRoute
   '/organizations/$ref/agents/$agentRef': typeof OrganizationsRefAgentsAgentRefRoute
   '/organizations/$ref/agents/new': typeof OrganizationsRefAgentsNewRoute
+  '/organizations/$ref/skills/$skillRef': typeof OrganizationsRefSkillsSkillRefRoute
   '/organizations/$ref/agents': typeof OrganizationsRefAgentsIndexRoute
+  '/organizations/$ref/skills': typeof OrganizationsRefSkillsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -91,7 +109,9 @@ export interface FileRoutesById {
   '/organizations/$ref/': typeof OrganizationsRefIndexRoute
   '/organizations/$ref/agents/$agentRef': typeof OrganizationsRefAgentsAgentRefRoute
   '/organizations/$ref/agents/new': typeof OrganizationsRefAgentsNewRoute
+  '/organizations/$ref/skills/$skillRef': typeof OrganizationsRefSkillsSkillRefRoute
   '/organizations/$ref/agents/': typeof OrganizationsRefAgentsIndexRoute
+  '/organizations/$ref/skills/': typeof OrganizationsRefSkillsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -103,7 +123,9 @@ export interface FileRouteTypes {
     | '/organizations/$ref/'
     | '/organizations/$ref/agents/$agentRef'
     | '/organizations/$ref/agents/new'
+    | '/organizations/$ref/skills/$skillRef'
     | '/organizations/$ref/agents/'
+    | '/organizations/$ref/skills/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -113,7 +135,9 @@ export interface FileRouteTypes {
     | '/organizations/$ref'
     | '/organizations/$ref/agents/$agentRef'
     | '/organizations/$ref/agents/new'
+    | '/organizations/$ref/skills/$skillRef'
     | '/organizations/$ref/agents'
+    | '/organizations/$ref/skills'
   id:
     | '__root__'
     | '/'
@@ -123,7 +147,9 @@ export interface FileRouteTypes {
     | '/organizations/$ref/'
     | '/organizations/$ref/agents/$agentRef'
     | '/organizations/$ref/agents/new'
+    | '/organizations/$ref/skills/$skillRef'
     | '/organizations/$ref/agents/'
+    | '/organizations/$ref/skills/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -134,7 +160,9 @@ export interface RootRouteChildren {
   OrganizationsRefIndexRoute: typeof OrganizationsRefIndexRoute
   OrganizationsRefAgentsAgentRefRoute: typeof OrganizationsRefAgentsAgentRefRoute
   OrganizationsRefAgentsNewRoute: typeof OrganizationsRefAgentsNewRoute
+  OrganizationsRefSkillsSkillRefRoute: typeof OrganizationsRefSkillsSkillRefRoute
   OrganizationsRefAgentsIndexRoute: typeof OrganizationsRefAgentsIndexRoute
+  OrganizationsRefSkillsIndexRoute: typeof OrganizationsRefSkillsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -195,6 +223,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OrganizationsRefAgentsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/organizations/$ref/skills/': {
+      id: '/organizations/$ref/skills/'
+      path: '/organizations/$ref/skills'
+      fullPath: '/organizations/$ref/skills/'
+      preLoaderRoute: typeof OrganizationsRefSkillsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/organizations/$ref/skills/$skillRef': {
+      id: '/organizations/$ref/skills/$skillRef'
+      path: '/organizations/$ref/skills/$skillRef'
+      fullPath: '/organizations/$ref/skills/$skillRef'
+      preLoaderRoute: typeof OrganizationsRefSkillsSkillRefRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -206,7 +248,9 @@ const rootRouteChildren: RootRouteChildren = {
   OrganizationsRefIndexRoute: OrganizationsRefIndexRoute,
   OrganizationsRefAgentsAgentRefRoute: OrganizationsRefAgentsAgentRefRoute,
   OrganizationsRefAgentsNewRoute: OrganizationsRefAgentsNewRoute,
+  OrganizationsRefSkillsSkillRefRoute: OrganizationsRefSkillsSkillRefRoute,
   OrganizationsRefAgentsIndexRoute: OrganizationsRefAgentsIndexRoute,
+  OrganizationsRefSkillsIndexRoute: OrganizationsRefSkillsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
