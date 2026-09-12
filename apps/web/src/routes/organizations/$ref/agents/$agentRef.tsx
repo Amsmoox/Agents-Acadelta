@@ -17,6 +17,7 @@ import { AdapterConfigForm } from "@/components/adapter-config-form";
 import { AdapterIcon } from "@/components/adapter-icon";
 import { InstructionsTab } from "@/features/agents/instructions-tab";
 import { SkillsTab } from "@/features/agents/skills-tab";
+import { RunsTab } from "@/features/agents/runs-tab";
 import {
   useAdapters,
   useAgent,
@@ -33,13 +34,13 @@ import { fullDate, timeAgo } from "@/lib/format";
 export const Route = createFileRoute("/organizations/$ref/agents/$agentRef")({
   validateSearch: (search: Record<string, unknown>): { tab?: Tab } => {
     const tab = search["tab"];
-    const known: Tab[] = ["instructions", "skills", "harness", "governance"];
+    const known: Tab[] = ["runs", "instructions", "skills", "harness", "governance"];
     return known.includes(tab as Tab) ? { tab: tab as Tab } : {};
   },
   component: AgentDetailPage,
 });
 
-type Tab = "overview" | "instructions" | "skills" | "harness" | "governance";
+type Tab = "overview" | "runs" | "instructions" | "skills" | "harness" | "governance";
 
 function AgentDetailPage() {
   const { ref: org, agentRef: ref } = Route.useParams();
@@ -149,6 +150,7 @@ function AgentDetailPage() {
           // Who it is, what it knows, how it runs, who controls it.
           options={[
             { value: "overview" as Tab, label: "Overview" },
+            { value: "runs" as Tab, label: "Runs" },
             { value: "instructions" as Tab, label: "Instructions" },
             { value: "skills" as Tab, label: "Skills" },
             { value: "harness" as Tab, label: "Harness" },
@@ -158,6 +160,7 @@ function AgentDetailPage() {
       </div>
 
       {tab === "overview" ? <Overview org={org} agent={agent} /> : null}
+      {tab === "runs" ? <RunsTab org={org} agent={agent.slug} /> : null}
       {tab === "instructions" ? <InstructionsTab org={org} agent={agent.slug} /> : null}
       {tab === "skills" ? <SkillsTab org={org} agent={agent.slug} /> : null}
       {tab === "harness" ? <Harness org={org} agent={agent} /> : null}

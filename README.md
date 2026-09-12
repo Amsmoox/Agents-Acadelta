@@ -31,15 +31,35 @@ Health check: `curl http://localhost:4100/health`
 
 ```
 apps/
-  api/        Fastify — REST + SSE + (later) MCP server. Never spawns a process.
+  api/        Fastify — REST + SSE. Never spawns a process.
   runner/     Dispatcher + subprocess supervisor. Never serves an HTTP request.
   web/        Vite + React + TanStack Router SPA.
 packages/
-  shared/     Zod schemas and types shared across api / runner / web.
+  core/       Repositories both api and runner use: dispatch, skills, instructions.
+  shared/     Zod schemas, types, prompt assembly, skill format.
   db/         Drizzle schema, client, migrations.
-  adapters/   Agent adapters (claude-code, codex, acp, ...). Empty for now.
-  sandbox/    SandboxProvider implementations (local-docker, ...). Empty for now.
+  adapters/   Agent types and how to invoke each one.
+  sandbox/    SandboxProvider implementations. Empty for now.
 ```
+
+## How a run happens
+
+1. Something asks an agent to run. One row lands in `agc_agent_wakeups`, and a
+   partial unique index means a second request for a busy agent **merges into
+   the pending one** rather than queueing a duplicate run.
+2. The runner claims it. In one transaction, with the agent's row locked: the
+   agent must be invokable, and it must be within budget. A second partial
+   unique index on `agc_agent_runs` guarantees one active run per agent even
+   with several runners.
+3. The system prompt is composed — the agent's `AGENTS.md`, then one line per
+   skill in the organization — and written to a file the tool reads.
+4. The process is spawned in its own process group. Output goes to an
+   append-only file first and is read back from there, so a runner that dies
+   does not take the transcript with it.
+5. The web app follows along over SSE, each line carrying its sequence number so
+   a dropped connection resumes rather than replaying.
+6. A run whose runner stops proving it is alive is reaped and re-woken — three
+   times, then it waits for a person instead of burning a machine.
 
 **The one rule:** `api` never spawns a child process, `runner` never serves a
 request. They talk only through Postgres.
