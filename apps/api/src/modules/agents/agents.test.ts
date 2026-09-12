@@ -150,6 +150,32 @@ describe.skipIf(!reachable)("agents API", () => {
       expect(body.eligibility.reason).toBe("invalid_org_chain");
     });
 
+    it("refuses to point a new reporting line at a terminated manager", async () => {
+      // The chain would be broken the moment it was saved, and the agent would
+      // immediately read as unassignable. Better to say so while the operator
+      // is still choosing than to explain it in a banner afterwards.
+      const lead = (await create({ name: "Lead" })).json();
+      await post(`${lead.id}/terminate`);
+
+      const res = await create({ name: "Dev", reportsTo: lead.id });
+      expect(res.statusCode).toBe(422);
+      expect(res.json().error.code).toBe("AGC-3011");
+    });
+
+    it("refuses to move an existing agent under a terminated manager", async () => {
+      const lead = (await create({ name: "Lead" })).json();
+      const dev = (await create({ name: "Dev" })).json();
+      await post(`${lead.id}/terminate`);
+
+      const res = await app.inject({
+        method: "PATCH",
+        url: `/organizations/${org}/agents/${dev.id}`,
+        payload: { reportsTo: lead.id },
+      });
+      expect(res.statusCode).toBe(422);
+      expect(res.json().error.code).toBe("AGC-3011");
+    });
+
     it("promotes an agent whose manager is terminated into the org tree root", async () => {
       const lead = (await create({ name: "Lead" })).json();
       await create({ name: "Dev", reportsTo: lead.id });

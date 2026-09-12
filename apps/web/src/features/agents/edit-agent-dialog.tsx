@@ -61,6 +61,19 @@ export function EditAgentDialog({ org, agent }: { org: string; agent: AgentDetai
   // offering itself avoids an error the person can see coming.
   const managers = (roster.data ?? []).filter((candidate) => candidate.id !== agent.id);
 
+  // The roster excludes terminated agents, so an agent whose manager was
+  // terminated would find its own current value missing from the list and the
+  // select would silently snap to whatever came first. Carry it, labelled.
+  const currentManagerMissing =
+    agent.reportsTo !== null && !managers.some((candidate) => candidate.id === agent.reportsTo);
+  const managerOptions = [
+    { value: "", label: "No manager" },
+    ...(currentManagerMissing && agent.manager
+      ? [{ value: agent.manager.id, label: `${agent.manager.name} (terminated)` }]
+      : []),
+    ...managers.map((candidate) => ({ value: candidate.id, label: candidate.name })),
+  ];
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setError(undefined);
@@ -72,12 +85,18 @@ export function EditAgentDialog({ org, agent }: { org: string; agent: AgentDetai
     }
 
     try {
+      const nextManager = reportsTo === "" ? null : reportsTo;
+
       await update.mutateAsync({
         name: name.trim(),
         role,
         title: title.trim() === "" ? null : title.trim(),
         capabilities: capabilities.trim() === "" ? null : capabilities.trim(),
-        reportsTo: reportsTo === "" ? null : reportsTo,
+        // Sent only when it actually changed. The server re-validates the
+        // reporting line whenever this field is present, so including it
+        // unconditionally meant renaming an agent whose manager had since been
+        // terminated was rejected for a line nobody had touched.
+        ...(nextManager !== agent.reportsTo ? { reportsTo: nextManager } : {}),
         budgetMonthlyCents: cents,
       });
       toast.success("Saved");
@@ -85,6 +104,10 @@ export function EditAgentDialog({ org, agent }: { org: string; agent: AgentDetai
     } catch (failure) {
       if (failure instanceof ApiError && failure.code === "AGC-3005") {
         setError("That manager reports to this agent, which would make a loop.");
+        return;
+      }
+      if (failure instanceof ApiError && failure.code === "AGC-3011") {
+        setError("That agent is terminated, so it cannot manage anyone. Pick someone else.");
         return;
       }
       setError(firstIssue(failure) ?? "Could not save.");
@@ -153,13 +176,7 @@ export function EditAgentDialog({ org, agent }: { org: string; agent: AgentDetai
                   {...props}
                   value={reportsTo}
                   onChange={(event) => setReportsTo(event.target.value)}
-                  options={[
-                    { value: "", label: "No manager" },
-                    ...managers.map((candidate) => ({
-                      value: candidate.id,
-                      label: candidate.name,
-                    })),
-                  ]}
+                  options={managerOptions}
                 />
               )}
             </Field>

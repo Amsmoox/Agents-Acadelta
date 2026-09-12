@@ -79,6 +79,11 @@ export const ERRORS = {
     status: 422,
     message: "The agent settings are incomplete.",
   },
+  AGENT_MANAGER_TERMINATED: {
+    code: 3011,
+    status: 422,
+    message: "That manager is terminated, so it cannot be anyone's escalation path.",
+  },
   // 4xxx - knowledge: instructions and skills
   SKILL_NOT_FOUND: { code: 4001, status: 404, message: "Skill not found." },
   SKILL_SLUG_TAKEN: { code: 4002, status: 409, message: "That skill name is already in use." },

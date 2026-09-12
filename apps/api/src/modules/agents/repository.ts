@@ -152,7 +152,16 @@ export function createAgentRepository(db: Database) {
     }
 
     const nodes = await orgNodes(organizationId);
-    if (!nodes.has(reportsTo)) throw new AppError("AGENT_MANAGER_NOT_FOUND", { reportsTo });
+    const manager = nodes.get(reportsTo);
+    if (!manager) throw new AppError("AGENT_MANAGER_NOT_FOUND", { reportsTo });
+
+    // A terminated manager is a dead escalation path the moment it is set, and
+    // `computeOrgChainHealth` would immediately report the agent as unassignable.
+    // Refusing here means the operator hears about it while they can still pick
+    // somebody else, rather than from a banner afterwards.
+    if (manager.status === "terminated") {
+      throw new AppError("AGENT_MANAGER_TERMINATED", { reportsTo, name: manager.name });
+    }
     if (!agentId) return;
 
     const seen = new Set<string>([agentId]);
