@@ -8,10 +8,18 @@ import { cn } from "@/lib/utils";
 export const MenuRoot = Base.Root;
 export const MenuTrigger = Base.Trigger;
 
-export function MenuContent({ children, className }: { children: ReactNode; className?: string }) {
+export function MenuContent({
+  children,
+  className,
+  align = "end",
+}: {
+  children: ReactNode;
+  className?: string;
+  align?: "start" | "center" | "end";
+}) {
   return (
     <Base.Portal>
-      <Base.Positioner sideOffset={4} align="end" className="z-50">
+      <Base.Positioner sideOffset={4} align={align} className="z-50">
         <Base.Popup
           className={cn(
             "min-w-40 rounded-[var(--radius-md)] border border-line bg-surface p-1",
@@ -55,4 +63,8 @@ export function MenuItem({
 
 export function MenuSeparator() {
   return <Base.Separator className="my-1 h-px bg-line" />;
+}
+
+export function MenuLabel({ children }: { children: ReactNode }) {
+  return <div className="px-2 pb-1 pt-1.5 text-2xs font-medium text-faint">{children}</div>;
 }

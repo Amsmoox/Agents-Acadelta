@@ -5,6 +5,7 @@ import { Link } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 import { Building2, Bot, ListChecks, Moon, Sun } from "lucide-react";
 import { applyTheme, readTheme, type Theme } from "@/lib/theme";
+import { OrganizationSwitcher } from "@/components/organization-switcher";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -55,11 +56,15 @@ export function AppShell({ children }: { children: ReactNode }) {
           "md:sticky md:top-0",
         )}
       >
-        <div className="flex items-center justify-between px-1.5 pb-3">
-          <Link to="/organizations" className="flex items-baseline gap-1.5">
-            <span className="text-base font-semibold tracking-[-0.02em] text-ink">agentco</span>
+        <div className="flex items-center justify-between px-1.5 pb-1">
+          <Link to="/organizations" className="text-2xs font-medium tracking-[0.01em] text-faint">
+            agentco
           </Link>
           <ThemeToggle />
+        </div>
+
+        <div className="pb-3">
+          <OrganizationSwitcher />
         </div>
 
         <nav className="flex gap-1 md:flex-col">
