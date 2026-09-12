@@ -36,6 +36,8 @@ export type ClaimedRun = {
   agentId: string;
   organizationId: string;
   prompt: string;
+  /** Every trigger that merged into the wakeup this run came from. */
+  reasons: WakeReason[];
 };
 
 /** A run reaped this many times stops being retried and waits for a person. */
@@ -123,6 +125,7 @@ export function createDispatchRepository(db: Database) {
             agentId: agentWakeups.agentId,
             organizationId: agentWakeups.organizationId,
             prompt: agentWakeups.prompt,
+            reasons: agentWakeups.reasons,
           })
           .from(agentWakeups)
           .where(
@@ -219,6 +222,7 @@ export function createDispatchRepository(db: Database) {
             agentId: run.agentId,
             organizationId: run.organizationId,
             prompt,
+            reasons: candidate.reasons,
           };
         } catch (error) {
           // Another dispatcher won the race for this agent. Not an error — the
