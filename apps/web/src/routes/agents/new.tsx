@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/feedback";
 import { AdapterConfigForm } from "@/components/adapter-config-form";
+import { AdapterIcon } from "@/components/adapter-icon";
 import { useCurrentOrganization } from "@/features/organizations/current-organization";
 import { useAdapters, useAgents, useCreateAgent } from "@/features/agents/queries";
 import { ApiError, firstIssue } from "@/lib/api";
@@ -193,6 +194,7 @@ function NewAgentPage() {
                       : "border-line bg-surface hover:border-line-strong",
                   )}
                 >
+                  <AdapterIcon type={adapter.type} className="mt-0.5 size-4.5" />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1.5 text-sm font-medium text-ink">
                       {adapter.label}

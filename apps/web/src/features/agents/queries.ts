@@ -14,6 +14,7 @@ import type { FieldSpec } from "@agentco/adapters";
 import { request } from "@/lib/api";
 
 export type AgentDetail = Agent & {
+  manager: { id: string; name: string; status: string } | null;
   orgChainHealth: OrgChainHealth;
   eligibility: AgentEligibility;
 };

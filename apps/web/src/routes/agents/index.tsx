@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button";
 import { useCurrentOrganization } from "@/features/organizations/current-organization";
 import { useAgents, useOrgTree } from "@/features/agents/queries";
 import { STATUS_LABEL, STATUS_TONE } from "@/features/agents/status";
+import { AdapterIcon } from "@/components/adapter-icon";
+import { useAdapters } from "@/features/agents/queries";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/agents/")({
@@ -30,6 +32,9 @@ function AgentsPage() {
   const org = current?.slug;
   const agents = useAgents(org);
   const tree = useOrgTree(org);
+  const adapters = useAdapters();
+  const adapterLabel = (type: string) =>
+    (adapters.data ?? []).find((a) => a.type === type)?.label ?? type;
 
   if (!orgPending && !current) {
     return (
@@ -112,7 +117,7 @@ function AgentsPage() {
       {roster.length > 0 && view === "list" ? (
         <List>
           {roster.map((agent) => (
-            <AgentRow key={agent.id} agent={agent} />
+            <AgentRow key={agent.id} agent={agent} adapterLabel={adapterLabel(agent.adapterType)} />
           ))}
         </List>
       ) : null}
@@ -130,11 +135,14 @@ function AgentsPage() {
   );
 }
 
-function AgentRow({ agent }: { agent: Agent }) {
+function AgentRow({ agent, adapterLabel }: { agent: Agent; adapterLabel: string }) {
+  const model = agent.adapterConfig["model"];
   return (
     <Link to="/agents/$ref" params={{ ref: agent.slug }} className="block">
       <ListRow interactive>
         <StatusDot tone={STATUS_TONE[agent.status]} className="mt-[0.4375rem] self-start" />
+        <AdapterIcon type={agent.adapterType} className="mt-0.5 size-4 self-start" />
+
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="truncate text-sm font-medium text-ink">{agent.name}</span>
@@ -147,9 +155,13 @@ function AgentRow({ agent }: { agent: Agent }) {
             {agent.title ?? agent.capabilities ?? "No description"}
           </p>
         </div>
-        <span className="machine hidden shrink-0 self-start pt-0.5 text-2xs text-faint sm:block">
-          {agent.adapterType}
-        </span>
+
+        <div className="hidden shrink-0 self-start pt-0.5 text-right sm:block">
+          <p className="text-2xs text-muted">{adapterLabel}</p>
+          {typeof model === "string" && model ? (
+            <p className="machine text-2xs text-faint">{model}</p>
+          ) : null}
+        </div>
       </ListRow>
     </Link>
   );

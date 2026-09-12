@@ -268,8 +268,13 @@ export function createAgentRepository(db: Database) {
       const row = await requireRow(organizationId, ref);
       const nodes = await orgNodes(organizationId);
       const health = computeOrgChainHealth(row.id, nodes);
+      const manager = row.reportsTo ? (nodes.get(row.reportsTo) ?? null) : null;
+
       return {
         ...toAgent(row),
+        // Resolved here rather than on the client: a detail page should not have
+        // to fetch the whole roster to render one name.
+        manager: manager ? { id: manager.id, name: manager.name, status: manager.status } : null,
         orgChainHealth: health,
         eligibility: computeEligibility(row.status, health),
       };

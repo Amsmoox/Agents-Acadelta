@@ -16,6 +16,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { List, ListRow } from "@/components/ui/list";
 import { MenuContent, MenuItem, MenuRoot, MenuTrigger } from "@/components/ui/menu";
 import { AdapterConfigForm } from "@/components/adapter-config-form";
+import { AdapterIcon } from "@/components/adapter-icon";
 import { useCurrentOrganization } from "@/features/organizations/current-organization";
 import {
   useAdapters,
@@ -99,12 +100,17 @@ function AgentDetailPage() {
             Agents
           </Link>
         }
-        title={agent.name}
+        title={
+          <span className="flex items-center gap-2">
+            <AdapterIcon type={agent.adapterType} className="size-5" />
+            {agent.name}
+          </span>
+        }
         meta={
           <>
             <Tag>{AGENT_ROLE_LABELS[agent.role]}</Tag>
             <Badge tone={STATUS_TONE[agent.status]}>{STATUS_LABEL[agent.status]}</Badge>
-            <span className="machine text-faint">{agent.adapterType}</span>
+            {agent.manager ? <span className="text-faint">reports to {agent.manager.name}</span> : null}
           </>
         }
         actions={org ? <AgentActions org={org} agent={agent} /> : null}
@@ -252,7 +258,7 @@ function Overview({ agent }: { org: string; agent: AgentDetail }) {
       <Card title="Identity">
         <Row label="Role" value={AGENT_ROLE_LABELS[agent.role]} />
         <Row label="Title" value={agent.title ?? "—"} />
-        <Row label="Reports to" value={agent.reportsTo ? <span className="machine">{agent.reportsTo.slice(0, 8)}</span> : "No manager"} />
+        <Row label="Reports to" value={agent.manager?.name ?? "No manager"} />
         <Row label="Can be assigned work" value={agent.eligibility.assignable ? "Yes" : "No"} />
       </Card>
 
