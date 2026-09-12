@@ -243,10 +243,24 @@ export function createDispatchRepository(db: Database) {
         })
         .where(eq(agentRuns.id, runId));
 
+      const agentOfRun = sql`(select agent_id from ${agentRuns} where id = ${runId})`;
+
+      // Proof of life is unconditional; the status change is not.
+      await db.update(agents).set({ lastHeartbeatAt: new Date() }).where(eq(agents.id, agentOfRun));
+
+      // A person can pause or terminate an agent in the window between the
+      // lease and the process actually starting. Setting "running" regardless
+      // silently undid that decision, and the agent then looked available while
+      // the thing they had just stopped carried on.
       await db
         .update(agents)
-        .set({ status: "running", lastHeartbeatAt: new Date() })
-        .where(eq(agents.id, sql`(select agent_id from ${agentRuns} where id = ${runId})`));
+        .set({ status: "running" })
+        .where(
+          and(
+            eq(agents.id, agentOfRun),
+            sql`${agents.status} not in ('paused', 'terminated', 'pending_approval')`,
+          ),
+        );
     },
 
     /** Proof of life. Its interval bounds how long a dead run stays undetected. */

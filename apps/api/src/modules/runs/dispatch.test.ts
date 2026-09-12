@@ -343,6 +343,36 @@ describe.skipIf(!reachable)("dispatch", () => {
     });
   });
 
+  describe("starting", () => {
+    it("does not undo a pause that landed while the process was starting", async () => {
+      await dispatch.requestWake(org, agent, reason("timer"));
+      const run = await dispatch.claimNext("runner-1", 30);
+
+      // A person pauses between the lease and the process actually starting.
+      await db
+        .update(agents)
+        .set({ status: "paused", pauseReason: "manual" })
+        .where(eq(agents.id, agent));
+
+      await dispatch.markRunning(run!.runId, 4242, "# prompt", "/tmp/transcript.ndjson");
+
+      const [row] = await db.select().from(agents).where(eq(agents.id, agent));
+      expect(row!.status).toBe("paused");
+      // Proof of life is still recorded; only the status change is refused.
+      expect(row!.lastHeartbeatAt).not.toBeNull();
+    });
+
+    it("marks an idle agent as running", async () => {
+      await dispatch.requestWake(org, agent, reason("timer"));
+      const run = await dispatch.claimNext("runner-1", 30);
+
+      await dispatch.markRunning(run!.runId, 4242, "# prompt", "/tmp/transcript.ndjson");
+
+      const [row] = await db.select().from(agents).where(eq(agents.id, agent));
+      expect(row!.status).toBe("running");
+    });
+  });
+
   describe("finishing", () => {
     it("adds the run's cost to the agent's spend", async () => {
       await dispatch.requestWake(org, agent, reason("timer"));
