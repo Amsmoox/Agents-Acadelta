@@ -34,9 +34,15 @@ function OrganizationsPage() {
   const { new: openCreate = false } = Route.useSearch();
   const navigate = useNavigate();
 
-  // Closing the dialog clears the flag, so a refresh does not reopen it.
+  // The URL owns this dialog, so BOTH directions have to be wired. Handling only
+  // the close case left the page's own button dead: `open` is controlled by the
+  // search param, so the trigger's request to open went nowhere.
   const setCreateOpen = (open: boolean) => {
-    if (!open) void navigate({ to: "/organizations", search: {}, replace: true });
+    void navigate({
+      to: "/organizations",
+      search: open ? { new: true } : {},
+      replace: true,
+    });
   };
 
   const all = query.data ?? [];
