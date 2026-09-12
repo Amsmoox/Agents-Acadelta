@@ -8,12 +8,20 @@ import { resolve } from "node:path";
 import { eq } from "drizzle-orm";
 import { agents, createDatabase } from "@agentco/db";
 import { buildSpawnSpec } from "@agentco/adapters";
+import type { ClaimedRun } from "@agentco/core";
 import { buildSkillManifest, composeSystemPrompt } from "@agentco/shared";
 import {
+  RUN_API_ENV,
+  RUN_TOKEN_ENV,
+  createCredentialRepository,
   createDispatchRepository,
+  createObjectiveRepository,
   createInstructionRepository,
   createSkillRepository,
+  createTaskRepository,
 } from "@agentco/core";
+import { buildToolManifest, writeShim } from "@agentco/sandbox";
+import { buildWorkPrompt } from "./work-context.js";
 import { loadEnv } from "./env.js";
 import { createLogger } from "./logger.js";
 import { superviseRun } from "./supervisor.js";
@@ -25,24 +33,29 @@ const database = createDatabase(env.DATABASE_URL, 10);
 const dispatch = createDispatchRepository(database.db);
 const instructions = createInstructionRepository(database.db);
 const skills = createSkillRepository(database.db);
+const taskRepo = createTaskRepository(database.db);
+const credentials = createCredentialRepository(database.db);
+const objectiveRepo = createObjectiveRepository(database.db);
+
 
 /** Identifies this process in a lease, so a reaper knows whose run it was. */
 const RUNNER_ID = `${hostname()}:${process.pid}:${randomUUID().slice(0, 8)}`;
 const LEASE_SECONDS = env.RUN_LEASE_SECONDS;
 const STALE_AFTER_SECONDS = LEASE_SECONDS * 3;
 
+/** Put on each child's PATH, so `agentco` is a command it can simply run. */
+const shimDir = resolve(process.cwd(), env.RUN_SHIM_DIR);
 const transcriptDir = resolve(process.cwd(), env.RUN_TRANSCRIPT_DIR);
 await mkdir(transcriptDir, { recursive: true });
+
+// Written once at startup rather than per run: it is the same file every time,
+// and a child that starts while it is being rewritten would find half of one.
+await writeShim(shimDir);
 
 let stopping = false;
 const active = new Set<string>();
 
-async function executeRun(claim: {
-  runId: string;
-  agentId: string;
-  organizationId: string;
-  prompt: string;
-}): Promise<void> {
+async function executeRun(claim: ClaimedRun): Promise<void> {
   active.add(claim.runId);
   const runLog = log.child({ runId: claim.runId, agentId: claim.agentId });
 
@@ -65,11 +78,45 @@ async function executeRun(claim: {
       skills.manifestFor(claim.organizationId, claim.agentId),
     ]);
 
-    const systemPrompt = composeSystemPrompt({
-      instructions: identity,
-      instructionsPath: "AGENTS.md",
-      manifest: manifest || buildSkillManifest([]),
+    // Take a task before saying anything, so the prompt can be about the work
+    // rather than about the possibility of work. Claiming is atomic: if another
+    // runner got there first this simply returns nothing and the run proceeds
+    // with none, which is a normal outcome rather than an error.
+    const claimedTask = await taskRepo.claimNextFor(claim.agentId, claim.runId);
+
+    // A run by an agent carrying a standing order is one cycle of it, whether
+    // or not it happened to pick up a task. Counted before the work, so a run
+    // that crashes still spends the cycle it started.
+    const objective = await objectiveRepo.activeFor(claim.agentId);
+    if (objective) await objectiveRepo.beginCycle(objective.id);
+
+    const token = await credentials.mint({
+      runId: claim.runId,
+      organizationId: claim.organizationId,
+      agentId: claim.agentId,
+      responsibleUserId: claimedTask?.responsibleUserId ?? "owner",
+      expiresAt: new Date(Date.now() + LEASE_SECONDS * 4000),
     });
+    await credentials.setCurrentTask(claim.runId, claimedTask?.id ?? null);
+
+    const work = await buildWorkPrompt(database.db, {
+      organizationId: claim.organizationId,
+      agentId: claim.agentId,
+      taskId: claimedTask?.id ?? null,
+      reasons: claim.reasons,
+    });
+
+    const systemPrompt = [
+      composeSystemPrompt({
+        instructions: identity,
+        instructionsPath: "AGENTS.md",
+        manifest: manifest || buildSkillManifest([]),
+      }),
+      "",
+      buildToolManifest(),
+      "",
+      work,
+    ].join("\n");
 
     // Probed before spawning so an adapter the local runner cannot start fails
     // with an explanation rather than a missing-command error.
@@ -102,6 +149,13 @@ async function executeRun(claim: {
         })!,
       systemPrompt,
       cwd,
+      // The token goes into the environment and nowhere else: an argument list
+      // is readable by every other user on the machine.
+      env: {
+        [RUN_TOKEN_ENV]: token,
+        [RUN_API_ENV]: env.API_URL,
+        PATH: `${shimDir}:${process.env["PATH"] ?? ""}`,
+      },
       transcriptDir,
       timeoutSec,
       graceSec,
@@ -111,7 +165,12 @@ async function executeRun(claim: {
       },
       onEvents: (events) => dispatch.appendEvents(claim.runId, events),
       shouldCancel: () => dispatch.cancelRequested(claim.runId),
-      heartbeat: () => dispatch.touch(claim.runId, LEASE_SECONDS),
+      heartbeat: async () => {
+        await dispatch.touch(claim.runId, LEASE_SECONDS);
+        // The credential is extended with the lease; a long run must not lose
+        // its own hands halfway through.
+        await credentials.touch(claim.runId, new Date(Date.now() + LEASE_SECONDS * 4000));
+      },
     });
 
     const status = result.cancelled
@@ -140,7 +199,26 @@ async function executeRun(claim: {
       costCents: result.costCents,
     });
 
-    runLog.info({ status, exitCode: result.exitCode }, "run finished");
+    // The credential dies with the run, so a token that escaped a crashed child
+    // is inert rather than valid for as long as anyone holds it.
+    await credentials.revoke(claim.runId);
+    if (claimedTask) await taskRepo.releaseClaim(claimedTask.id, claim.runId);
+
+    if (objective) {
+      const ending = await objectiveRepo.endCycle(objective.id, {
+        runId: claim.runId,
+        costCents: result.costCents,
+      });
+      if (ending) {
+        // It ran out of cycles, budget or ideas. It stops, and it says which —
+        // and a report is written either way, because a standing order that
+        // ends quietly is indistinguishable from one nobody is running.
+        await objectiveRepo.end(claim.organizationId, objective.id, ending);
+        runLog.warn({ objective: objective.id, outcome: ending.outcome }, "objective ended");
+      }
+    }
+
+    runLog.info({ status, exitCode: result.exitCode, task: claimedTask?.key }, "run finished");
   } catch (error) {
     runLog.error({ err: error }, "run failed unexpectedly");
     await dispatch
@@ -149,6 +227,8 @@ async function executeRun(claim: {
         error: error instanceof Error ? error.message : "Unknown failure.",
       })
       .catch(() => undefined);
+    await credentials.revoke(claim.runId).catch(() => undefined);
+    await taskRepo.releaseClaimsOfRun(claim.runId).catch(() => undefined);
   } finally {
     active.delete(claim.runId);
   }

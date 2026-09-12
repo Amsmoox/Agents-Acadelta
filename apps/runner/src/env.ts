@@ -13,6 +13,10 @@ const envSchema = z.object({
   RUN_HEARTBEAT_INTERVAL_MS: z.coerce.number().int().positive().default(7000),
   /** How many agents this runner will supervise at once. */
   MAX_CONCURRENT_RUNS: z.coerce.number().int().positive().max(64).default(8),
+  /** Where the `agentco` shim is written, and put on each child's PATH. */
+  RUN_SHIM_DIR: z.string().default("./var/bin"),
+  /** What a running agent calls back on. Must be reachable from the child. */
+  API_URL: z.url().default("http://127.0.0.1:4100"),
 });
 
 export type Env = z.infer<typeof envSchema>;
