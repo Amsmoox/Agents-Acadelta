@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Mharrech Ayoub <mharrech.ayoub@gmail.com>
 
+import { createHash } from "node:crypto";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { agentSkills, skills, type Database, type SkillRow } from "@agentco/db";
 import {
@@ -42,6 +43,12 @@ function toSkill(row: SkillRow): Skill {
     name: row.name,
     description: row.description,
     markdown: row.markdown,
+    catalogueSlug: row.catalogueSlug,
+    // Compared rather than trusted: the hash is of what shipped, so a document
+    // somebody has since edited says so without anybody having to remember.
+    pristine:
+      row.catalogueHash !== null &&
+      createHash("sha256").update(row.markdown).digest("hex") === row.catalogueHash,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -166,6 +173,71 @@ export function createSkillRepository(db: Database) {
         .returning();
       if (!row) throw new AppError("SKILL_NOT_FOUND", { ref });
       return toSkill(row);
+    },
+
+    /**
+     * Copies catalogue skills into this organization's library.
+     *
+     * A copy, not a link. From here the organization owns the document and can
+     * change it; the catalogue is a starting point, not a dependency. Installing
+     * one that is already there refreshes it only when nobody has edited it —
+     * overwriting somebody's changes to give them the newer text is a trade
+     * nobody asked for.
+     */
+    async installFromCatalogue(
+      organizationId: string,
+      entries: {
+        slug: string;
+        name: string;
+        description: string;
+        markdown: string;
+        contentHash: string;
+      }[],
+    ): Promise<{ installed: string[]; refreshed: string[]; keptLocalEdits: string[] }> {
+      const installed: string[] = [];
+      const refreshed: string[] = [];
+      const keptLocalEdits: string[] = [];
+
+      for (const entry of entries) {
+        const existing = await findRow(organizationId, entry.slug);
+
+        if (!existing) {
+          await db.insert(skills).values({
+            organizationId,
+            slug: entry.slug,
+            name: entry.name,
+            description: entry.description,
+            markdown: entry.markdown,
+            catalogueSlug: entry.slug,
+            catalogueHash: entry.contentHash,
+          });
+          installed.push(entry.slug);
+          continue;
+        }
+
+        const untouched =
+          existing.catalogueHash !== null &&
+          createHash("sha256").update(existing.markdown).digest("hex") === existing.catalogueHash;
+
+        if (!untouched) {
+          keptLocalEdits.push(entry.slug);
+          continue;
+        }
+
+        await db
+          .update(skills)
+          .set({
+            name: entry.name,
+            description: entry.description,
+            markdown: entry.markdown,
+            catalogueSlug: entry.slug,
+            catalogueHash: entry.contentHash,
+          })
+          .where(eq(skills.id, existing.id));
+        refreshed.push(entry.slug);
+      }
+
+      return { installed, refreshed, keptLocalEdits };
     },
 
     async remove(organizationId: string, ref: string): Promise<void> {

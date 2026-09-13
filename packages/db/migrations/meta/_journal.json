@@ -64,6 +64,13 @@
       "when": 1789250855034,
       "tag": "0008_dear_mac_gargan",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789337893856,
+      "tag": "0009_petite_klaw",
+      "breakpoints": true
     }
   ]
 }

@@ -134,3 +134,52 @@ export function useDeleteInstructionFile(org: string, agent: string) {
       client.invalidateQueries({ queryKey: skillKeys.instructions(org, agent) }),
   });
 }
+
+/** One entry in the catalogue of skills that ship with the product. */
+export type CatalogueSkill = {
+  slug: string;
+  category: string;
+  name: string;
+  description: string;
+  tags: string[];
+  recommendedForRoles: string[];
+  markdown: string;
+  installed: boolean;
+};
+
+export const catalogueKeys = {
+  all: ["skill-catalogue"] as const,
+  list: (org: string, role: string) => ["skill-catalogue", org, role] as const,
+};
+
+/**
+ * The catalogue, told which of it this organization already has.
+ *
+ * Asked for with the organization rather than joined on the client, because
+ * "installed" differs per tenant and getting it wrong offers an Install button
+ * on something already installed.
+ */
+export function useCatalogue(org: string, role?: string) {
+  return useQuery({
+    queryKey: catalogueKeys.list(org, role ?? "all"),
+    queryFn: () =>
+      request<{ categories: string[]; data: CatalogueSkill[] }>(
+        `/organizations/${org}/skill-catalogue${role ? `?role=${encodeURIComponent(role)}` : ""}`,
+      ),
+  });
+}
+
+export function useInstallCatalogueSkills(org: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (slugs: string[]) =>
+      request<{ installed: string[]; refreshed: string[]; keptLocalEdits: string[] }>(
+        `/organizations/${org}/skill-catalogue/install`,
+        { method: "POST", body: JSON.stringify({ slugs }) },
+      ),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: skillKeys.all });
+      void client.invalidateQueries({ queryKey: catalogueKeys.all });
+    },
+  });
+}

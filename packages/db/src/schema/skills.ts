@@ -39,6 +39,17 @@ export const skills = pgTable(
     name: text("name").notNull(),
     description: text("description"),
     markdown: text("markdown").notNull(),
+    /**
+     * The catalogue skill this was installed from, if any.
+     *
+     * Kept so the library can say where a document came from and whether it has
+     * been changed since — not so the copy can be overwritten. Once installed
+     * the skill belongs to the organization, and a catalogue that silently
+     * rewrites somebody's edits is one nobody would trust enough to use.
+     */
+    catalogueSlug: text("catalogue_slug"),
+    /** sha256 of the document as it shipped, to tell a modified copy from a pristine one. */
+    catalogueHash: text("catalogue_hash"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()

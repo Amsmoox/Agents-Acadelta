@@ -298,4 +298,135 @@ describe.skipIf(!reachable)("skills and instructions", () => {
       expect(res.json().error.code).toBe("AGC-4004");
     });
   });
+
+  describe("the catalogue that ships with the product", () => {
+    const catalogue = (path = "") =>
+      app.inject({ method: "GET", url: `/organizations/${org}/skill-catalogue${path}` });
+
+    const install = (slugs: string[]) =>
+      app.inject({
+        method: "POST",
+        url: `/organizations/${org}/skill-catalogue/install`,
+        payload: { slugs },
+      });
+
+    it("lists skills across every discipline, with categories", async () => {
+      const body = (await catalogue()).json();
+      expect(body.data.length).toBeGreaterThan(20);
+      expect(body.categories).toContain("engineering");
+      expect(body.categories).toContain("marketing");
+    });
+
+    it("says which of them this organization already has", async () => {
+      const before = (await catalogue()).json().data.find((s: { slug: string }) => s.slug === "debugging");
+      expect(before.installed).toBe(false);
+
+      await install(["debugging"]);
+
+      const after = (await catalogue()).json().data.find((s: { slug: string }) => s.slug === "debugging");
+      expect(after.installed).toBe(true);
+    });
+
+    it("narrows to what suits a role", async () => {
+      const forQa = (await catalogue("?role=qa")).json().data.map((s: { slug: string }) => s.slug);
+      expect(forQa).toContain("bug-reporting");
+      expect(forQa).not.toContain("landing-page-copy");
+    });
+
+    it("copies the skill into the library rather than linking to it", async () => {
+      await install(["code-review"]);
+      const skill = (
+        await app.inject({ method: "GET", url: `/organizations/${org}/skills/code-review` })
+      ).json();
+
+      expect(skill.markdown).toContain("# Code review");
+      expect(skill.catalogueSlug).toBe("code-review");
+      expect(skill.pristine).toBe(true);
+    });
+
+    it("marks a skill as no longer pristine once it is edited", async () => {
+      await install(["debugging"]);
+      await app.inject({
+        method: "PATCH",
+        url: `/organizations/${org}/skills/debugging`,
+        payload: { markdown: "---\nname: debugging\ndescription: Our own version of this, rewritten for us.\n---\n\n# Ours\n" },
+      });
+
+      const skill = (
+        await app.inject({ method: "GET", url: `/organizations/${org}/skills/debugging` })
+      ).json();
+      expect(skill.pristine).toBe(false);
+    });
+
+    it("never overwrites a skill somebody has edited", async () => {
+      // The whole reason installing copies rather than links. Handing somebody
+      // newer text at the cost of their own edits is a trade nobody asked for.
+      await install(["debugging"]);
+      const mine = "---\nname: debugging\ndescription: Our own version of this, rewritten for us.\n---\n\n# Ours\n";
+      await app.inject({
+        method: "PATCH",
+        url: `/organizations/${org}/skills/debugging`,
+        payload: { markdown: mine },
+      });
+
+      const result = (await install(["debugging"])).json();
+      expect(result.keptLocalEdits).toEqual(["debugging"]);
+
+      const skill = (
+        await app.inject({ method: "GET", url: `/organizations/${org}/skills/debugging` })
+      ).json();
+      expect(skill.markdown).toBe(mine);
+    });
+
+    it("refreshes an untouched copy without complaint", async () => {
+      await install(["debugging"]);
+      const result = (await install(["debugging"])).json();
+      expect(result.refreshed).toEqual(["debugging"]);
+      expect(result.keptLocalEdits).toEqual([]);
+    });
+
+    it("installs several at once", async () => {
+      const result = (await install(["debugging", "code-review", "seo-audit"])).json();
+      expect(result.installed).toHaveLength(3);
+    });
+
+    it("refuses a slug that is not in the catalogue", async () => {
+      const res = await install(["no-such-skill"]);
+      expect(res.statusCode).toBe(404);
+    });
+
+    it("refuses to install into an archived organization", async () => {
+      await app.inject({ method: "POST", url: `/organizations/${org}/archive` });
+      const res = await install(["debugging"]);
+      expect(res.statusCode).toBe(409);
+    });
+
+    it("makes an installed skill reachable to an agent like any other", async () => {
+      await install(["debugging"]);
+      const agent = (
+        await app.inject({
+          method: "POST",
+          url: `/organizations/${org}/agents`,
+          payload: { name: "Ada", adapterType: "claude_local" },
+        })
+      ).json();
+      const skill = (
+        await app.inject({ method: "GET", url: `/organizations/${org}/skills/debugging` })
+      ).json();
+
+      await app.inject({
+        method: "PUT",
+        url: `/organizations/${org}/agents/${agent.id}/skills`,
+        payload: { skillIds: [skill.id] },
+      });
+
+      const manifest = (
+        await app.inject({
+          method: "GET",
+          url: `/organizations/${org}/agents/${agent.id}/skills/manifest`,
+        })
+      ).json();
+      expect(manifest.manifest).toContain("debugging");
+    });
+  });
 });

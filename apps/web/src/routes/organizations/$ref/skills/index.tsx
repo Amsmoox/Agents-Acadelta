@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Plus } from "lucide-react";
 import { Page, PageHeader } from "@/components/ui/page";
 import { List, ListRow } from "@/components/ui/list";
-import { Tag } from "@/components/ui/status";
+import { Badge, Tag } from "@/components/ui/status";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { useCreateSkill, useSkills } from "@/features/skills/queries";
 import { useCurrentOrganization } from "@/features/organizations/current-organization";
+import { CatalogueDialog } from "@/features/skills/catalogue-dialog";
 import { Callout } from "@/components/ui/callout";
 import { firstIssue } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
@@ -56,7 +57,10 @@ function SkillsPage() {
               New skill
             </Button>
           ) : (
-            <NewSkillDialog org={org} />
+            <>
+              <CatalogueDialog org={org} />
+              <NewSkillDialog org={org} />
+            </>
           )
         }
       />
@@ -118,6 +122,14 @@ function SkillsPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="truncate text-sm font-medium text-ink">{skill.name}</span>
                     <Tag>{skill.slug}</Tag>
+                    {/* Where it came from, and whether it is still what shipped.
+                        "Edited" is the useful half: it says this one is yours
+                        now and re-adding it from the catalogue will leave it be. */}
+                    {skill.catalogueSlug ? (
+                      <Badge tone={skill.pristine ? "idle" : "attention"}>
+                        {skill.pristine ? "From catalogue" : "Catalogue, edited"}
+                      </Badge>
+                    ) : null}
                   </div>
                   <p className="mt-0.5 truncate text-xs text-muted">
                     {skill.description ?? "No description"}
