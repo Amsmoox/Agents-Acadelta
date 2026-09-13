@@ -25,6 +25,12 @@ export const skillFrontmatterSchema = z.object({
   name: skillSlugSchema,
   description: z.string().trim().min(1).max(500),
   tags: z.array(z.string()).optional(),
+  /**
+   * Which agent roles this skill suits. A suggestion for whoever is choosing
+   * what an agent should know — never a rule, and never something that attaches
+   * a skill on its own.
+   */
+  recommendedForRoles: z.array(z.string()).optional(),
 });
 
 export type SkillFrontmatter = z.infer<typeof skillFrontmatterSchema>;
@@ -51,6 +57,9 @@ export const skillSchema = z.object({
   name: z.string(),
   description: z.string().nullable(),
   markdown: z.string(),
+  catalogueSlug: z.string().nullable(),
+  /** True when the document still matches what the catalogue shipped. */
+  pristine: z.boolean(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });
@@ -104,3 +113,23 @@ description: ${description}
 ## Steps
 `;
 }
+
+/** One entry in the catalogue of skills that ship with the product. */
+export const catalogueSkillSchema = z.object({
+  slug: z.string(),
+  category: z.string(),
+  name: z.string(),
+  description: z.string(),
+  tags: z.array(z.string()),
+  recommendedForRoles: z.array(z.string()),
+  markdown: z.string(),
+  /** Whether this organization already has it. */
+  installed: z.boolean(),
+});
+
+export const installCatalogueSkillsSchema = z.object({
+  slugs: z.array(skillSlugSchema).min(1).max(100),
+});
+
+export type CatalogueSkillEntry = z.infer<typeof catalogueSkillSchema>;
+export type InstallCatalogueSkillsInput = z.infer<typeof installCatalogueSkillsSchema>;
