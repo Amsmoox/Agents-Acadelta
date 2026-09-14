@@ -393,12 +393,31 @@ export function createObjectiveRepository(db: Database) {
       objectiveId: string,
       ending: ObjectiveEnding,
     ): Promise<Objective> {
+      // Guarded on it still being live, so ending is idempotent. Two
+      // verification sweeps a second and a half apart both read one objective
+      // as pending, both settled it, and both wrote it a report — because
+      // nothing here refused the second.
       const [row] = await db
         .update(objectives)
         .set({ status: ending.status, outcome: ending.outcome, endedAt: new Date() })
-        .where(and(eq(objectives.organizationId, organizationId), eq(objectives.id, objectiveId)))
+        .where(
+          and(
+            eq(objectives.organizationId, organizationId),
+            eq(objectives.id, objectiveId),
+            sql`${objectives.status} in ('active', 'paused')`,
+          ),
+        )
         .returning();
-      if (!row) throw new AppError("OBJECTIVE_NOT_FOUND", { id: objectiveId });
+
+      if (!row) {
+        // Already finished. Return what it finished as rather than failing:
+        // the caller asked for an outcome that has happened.
+        const existing = await this.get(organizationId, objectiveId);
+        if (existing.status === "active" || existing.status === "paused") {
+          throw new AppError("OBJECTIVE_NOT_FOUND", { id: objectiveId });
+        }
+        return existing;
+      }
 
       const reportTaskId = await this.writeReport(organizationId, row, ending);
       await db.update(objectives).set({ reportTaskId }).where(eq(objectives.id, row.id));

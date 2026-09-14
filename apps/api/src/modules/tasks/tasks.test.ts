@@ -586,6 +586,33 @@ describe.skipIf(!reachable)("tasks API", () => {
       await connection.close();
     });
 
+    it("writes one report however many times it is ended", async () => {
+      // Two verification sweeps a second and a half apart both read one
+      // objective as pending and both settled it, so it got two reports.
+      const { createObjectiveRepository } = await import("@agentco/core");
+      const { createDatabase } = await import("@agentco/db");
+      const connection = createDatabase(TEST_DATABASE_URL, 2);
+      const repo = createObjectiveRepository(connection.db);
+
+      const created = (await objective({})).json();
+      const orgRow = (await app.inject({ method: "GET", url: `/organizations/${org}` })).json();
+
+      const [first, second] = await Promise.all([
+        repo.settleSatisfaction(orgRow.id, created.id, []),
+        repo.settleSatisfaction(orgRow.id, created.id, []),
+      ]);
+      expect(first.satisfied || second.satisfied).toBe(true);
+
+      const reports = (
+        await app.inject({
+          method: "GET",
+          url: `/organizations/${org}/projects/${project}/tasks?kind=report`,
+        })
+      ).json().data;
+      expect(reports).toHaveLength(1);
+      await connection.close();
+    });
+
     it("counts the work filed under it", async () => {
       const created = (await objective({})).json();
       expect(created.taskCount).toBe(0);
