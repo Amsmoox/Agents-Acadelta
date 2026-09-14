@@ -413,6 +413,14 @@ describe.skipIf(!reachable)("tasks API", () => {
   });
 
   describe("a standing objective", () => {
+    /** An objective with nothing under it can no longer be satisfied, so the
+     *  tests that are about something else give it one finished task. */
+    const withFinishedWork = async (objectiveId: string, db: { execute: (q: string) => unknown }) => {
+      const task = (await create({ title: `Work for ${objectiveId.slice(0, 8)}` })).json();
+      await db.execute(`update agc_tasks set objective_id = '${objectiveId}' where id = '${task.id}'`);
+      await move(task.key, { status: "done" });
+    };
+
     const objective = (payload: Record<string, unknown>) =>
       app.inject({
         method: "POST",
@@ -528,6 +536,26 @@ describe.skipIf(!reachable)("tasks API", () => {
       await connection.close();
     });
 
+    it("refuses an objective under which nothing was ever done", async () => {
+      // The hole a feature objective opens. Its stated check passes on day one
+      // because the feature does not exist yet, so filing nothing and declaring
+      // victory would otherwise be a complete, passing objective.
+      const { createObjectiveRepository } = await import("@agentco/core");
+      const { createDatabase } = await import("@agentco/db");
+      const connection = createDatabase(TEST_DATABASE_URL, 2);
+      const repo = createObjectiveRepository(connection.db);
+
+      const created = (await objective({})).json();
+      const orgRow = (await app.inject({ method: "GET", url: `/organizations/${org}` })).json();
+
+      await repo.requestSatisfaction(orgRow.id, created.id, "Nothing to do here.");
+      const settled = await repo.settleSatisfaction(orgRow.id, created.id, []);
+
+      expect(settled.satisfied).toBe(false);
+      expect(settled.refusal).toContain("no work was ever filed");
+      await connection.close();
+    });
+
     it("finishes once the facts actually hold", async () => {
       const { createObjectiveRepository } = await import("@agentco/core");
       const { createDatabase } = await import("@agentco/db");
@@ -536,6 +564,13 @@ describe.skipIf(!reachable)("tasks API", () => {
 
       const created = (await objective({})).json();
       const orgRow = (await app.inject({ method: "GET", url: `/organizations/${org}` })).json();
+
+      // Something was done, and finished.
+      const done = (await create({ title: "Real work" })).json();
+      await connection.db.execute(
+        `update agc_tasks set objective_id = '${created.id}' where id = '${done.id}'`,
+      );
+      await move(done.key, { status: "done" });
 
       await repo.requestSatisfaction(orgRow.id, created.id, "Nothing left to do.");
       const settled = await repo.settleSatisfaction(orgRow.id, created.id, []);
@@ -567,6 +602,8 @@ describe.skipIf(!reachable)("tasks API", () => {
       ).json();
       const orgRow = (await app.inject({ method: "GET", url: `/organizations/${org}` })).json();
 
+      await withFinishedWork(created.id, connection.db);
+
       await repo.requestSatisfaction(orgRow.id, created.id, "Done as far as I can tell.");
       const first = await repo.settleSatisfaction(orgRow.id, created.id, []);
       expect(first.satisfied).toBe(false);
@@ -596,6 +633,8 @@ describe.skipIf(!reachable)("tasks API", () => {
 
       const created = (await objective({})).json();
       const orgRow = (await app.inject({ method: "GET", url: `/organizations/${org}` })).json();
+
+      await withFinishedWork(created.id, connection.db);
 
       const [first, second] = await Promise.all([
         repo.settleSatisfaction(orgRow.id, created.id, []),

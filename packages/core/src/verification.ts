@@ -26,7 +26,7 @@ export type CheckOutcome = {
 /** The check every objective gets, so none of them is unfinishable. */
 export const DEFAULT_CHECK: ObjectiveCheck = {
   id: "no-open-tasks",
-  statement: "Nothing this objective opened is still open.",
+  statement: "Work was done under this objective, and none of it is still open.",
   kind: "no_open_tasks",
   required: true,
 };

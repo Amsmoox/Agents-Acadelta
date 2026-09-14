@@ -304,18 +304,31 @@ export function createObjectiveRepository(db: Database) {
       if (!row) throw new AppError("OBJECTIVE_NOT_FOUND", { id: objectiveId });
 
       const checks = checksFor(row.checks);
-      const { openTaskCount } = await counts(objectiveId);
+      const { taskCount, openTaskCount } = await counts(objectiveId);
       const now = new Date().toISOString();
 
       const results: ObjectiveCheckResult[] = checks.map((check) => {
         if (check.kind === "no_open_tasks") {
+          // Nothing open is not the same as finished. An objective that never
+          // produced any work has not met anything — and for a feature, where
+          // the stated check passes on day one because the thing does not exist
+          // yet, that would otherwise be the whole objective: file nothing,
+          // declare victory, pass.
+          if (taskCount === 0) {
+            return {
+              id: check.id,
+              passed: false,
+              observed: "no work was ever filed under this objective",
+              checkedAt: now,
+            };
+          }
           return {
             id: check.id,
             passed: openTaskCount === 0,
             observed:
               openTaskCount === 0
-                ? "nothing open"
-                : `${openTaskCount} task${openTaskCount === 1 ? "" : "s"} still open`,
+                ? `all ${taskCount} closed`
+                : `${openTaskCount} of ${taskCount} still open`,
             checkedAt: now,
           };
         }
