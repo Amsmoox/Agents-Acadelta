@@ -22,7 +22,7 @@ import {
 } from "@agentco/core";
 import { buildToolManifest, writeShim } from "@agentco/sandbox";
 import { buildWorkPrompt } from "./work-context.js";
-import { verifyObjectives } from "./verify-objectives.js";
+import { checksAlreadyPass, verifyObjectives } from "./verify-objectives.js";
 import { loadEnv } from "./env.js";
 import { createLogger } from "./logger.js";
 import { superviseRun } from "./supervisor.js";
@@ -230,11 +230,17 @@ async function executeRun(claim: ClaimedRun): Promise<void> {
         costCents: result.costCents,
       });
       if (ending) {
-        // It ran out of cycles, budget or ideas. It stops, and it says which —
-        // and a report is written either way, because a standing order that
-        // ends quietly is indistinguishable from one nobody is running.
-        await objectiveRepo.end(claim.organizationId, objective.id, ending);
-        runLog.warn({ objective: objective.id, outcome: ending.outcome }, "objective ended");
+        // Before recording that it gave up, check whether it actually finished.
+        // Running out of cycles and being done look the same from inside the
+        // loop and are opposite outcomes, and `settleSatisfaction` ends it as
+        // satisfied when everything passes.
+        const finished = await checksAlreadyPass(database.db, objective, runLog);
+        if (finished) {
+          runLog.info({ objective: objective.id }, "objective met its checks before it ran out");
+        } else {
+          await objectiveRepo.end(claim.organizationId, objective.id, ending);
+          runLog.warn({ objective: objective.id, outcome: ending.outcome }, "objective ended");
+        }
       }
     }
 

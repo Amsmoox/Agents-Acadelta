@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2026 Mharrech Ayoub <mharrech.ayoub@gmail.com>
 
 import { spawn } from "node:child_process";
-import { eq } from "drizzle-orm";
-import { objectives, type Database, type ObjectiveRow } from "@agentco/db";
+import type { Database, ObjectiveRow } from "@agentco/db";
 import {
   checksFor,
   commandChecks,
@@ -135,7 +134,22 @@ async function runChecksFor(row: ObjectiveRow, log: Logger): Promise<ObjectiveCh
   return results;
 }
 
-/** Exported for the sweep to mark an objective as seen even with no checks. */
-export async function touchObjective(db: Database, id: string): Promise<void> {
-  await db.update(objectives).set({ updatedAt: new Date() }).where(eq(objectives.id, id));
+/**
+ * Whether an objective about to be stopped by one of its brakes has in fact
+ * finished.
+ *
+ * Running out of cycles and being done look identical from inside the loop, and
+ * they are opposite outcomes. An objective whose checks all pass has succeeded
+ * even if nobody got round to saying so, and recording that as "gave up" is
+ * both wrong and the kind of wrong somebody acts on.
+ */
+export async function checksAlreadyPass(
+  db: Database,
+  row: ObjectiveRow,
+  log: Logger,
+): Promise<boolean> {
+  const repo = createObjectiveRepository(db);
+  const results = await runChecksFor(row, log);
+  const outcome = await repo.settleSatisfaction(row.organizationId, row.id, results);
+  return outcome.satisfied;
 }
