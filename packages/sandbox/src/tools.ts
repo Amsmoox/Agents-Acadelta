@@ -113,7 +113,7 @@ export const TOOLS: ToolSpec[] = [
   },
   {
     name: "finish",
-    summary: "Ask to end your objective. Refused while work under it is still open.",
+    summary: "Ask to end your objective. The system runs its checks; it ends only if they pass.",
     usage: "finish -- <what was achieved>",
     method: "POST",
     path: () => "/agent/objective/finish",

@@ -9,3 +9,6 @@ export function createLogger(level: string, pretty: boolean) {
     ...(pretty ? { transport: { target: "pino-pretty" } } : {}),
   });
 }
+
+/** What the runner logs through. Narrow on purpose: the parts callers use. */
+export type Logger = ReturnType<typeof createLogger>;

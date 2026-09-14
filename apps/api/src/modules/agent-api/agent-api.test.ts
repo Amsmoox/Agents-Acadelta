@@ -94,7 +94,7 @@ describe.skipIf(!reachable)("the agent tool surface", () => {
       responsibleUserId: "owner",
       expiresAt: new Date(Date.now() + 60_000),
     });
-    await credentials.setCurrentTask(run!.id, taskId);
+    await credentials.setContext(run!.id, { taskId, projectId });
     tokens[name] = token;
     return token;
   }
@@ -319,6 +319,37 @@ describe.skipIf(!reachable)("the agent tool surface", () => {
   });
 
   describe("the rails", () => {
+    it("shows an objective owner its team even with no task of its own", async () => {
+      // The run where delegating is the entire job is the run with no task, and
+      // anchoring the surface on a task left that agent unable to see anybody
+      // to delegate to.
+      await startRun("Nadia", null);
+      const team = obj((await shell("Nadia", ["team"])).body["result"]);
+      const names = (team["data"] as { name: string }[]).map((a) => a.name);
+      expect(names).toContain("Priya");
+      expect(names).toContain("Sam");
+    });
+
+    it("lets an objective owner file work with no task of its own", async () => {
+      await startRun("Nadia", null);
+      const filed = await shell("Nadia", [
+        "create",
+        ids["Priya"]!,
+        "investigate",
+        "Look into the checkout flow",
+        "--",
+        "Find what is wrong.",
+      ]);
+      expect(filed.status).toBe(201);
+      expect(obj(filed.body["result"])["assigneeAgentId"]).toBe(ids["Priya"]);
+    });
+
+    it("shows an objective owner the project it is working in", async () => {
+      await startRun("Nadia", null);
+      const result = obj((await shell("Nadia", ["project"])).body["result"]);
+      expect(obj(result["project"])["name"]).toBe("Checkout Rewrite");
+    });
+
     it("refuses to file work for an agent that is not on the project", async () => {
       const outsider = (
         await app.inject({

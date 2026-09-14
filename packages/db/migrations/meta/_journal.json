@@ -71,6 +71,20 @@
       "when": 1789337893856,
       "tag": "0009_petite_klaw",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789384934649,
+      "tag": "0010_zippy_queen_noir",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789385728756,
+      "tag": "0011_busy_colossus",
+      "breakpoints": true
     }
   ]
 }

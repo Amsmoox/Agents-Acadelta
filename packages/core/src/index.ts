@@ -15,4 +15,5 @@ export * from "./credentials.js";
 export * from "./tasks.js";
 export * from "./workflow.js";
 export * from "./objectives.js";
+export * from "./verification.js";
 export * from "./prompt.js";

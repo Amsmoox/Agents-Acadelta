@@ -196,6 +196,9 @@ function NewObjectiveDialog({ org, project }: { org: string; project: Project })
   const [owner, setOwner] = useState("");
   const [maxCycles, setMaxCycles] = useState("10");
   const [budget, setBudget] = useState("");
+  const [command, setCommand] = useState("");
+  const [workingDirectory, setWorkingDirectory] = useState("");
+  const [humanCheck, setHumanCheck] = useState("");
   const [error, setError] = useState<string>();
 
   const create = useCreateObjective(org, project.slug);
@@ -213,6 +216,32 @@ function NewObjectiveDialog({ org, project }: { org: string; project: Project })
         maxCycles: Number(maxCycles) || 10,
         budgetCents: budget.trim() ? Math.round(Number(budget) * 100) : 0,
         maxIdleCycles: 2,
+        // Nothing the agent can answer for itself. A command is run by the
+        // system and judged on its exit code; a human check waits for a person.
+        checks: [
+          ...(command.trim()
+            ? [
+                {
+                  id: "command",
+                  statement: `\`${command.trim()}\` passes`,
+                  kind: "command" as const,
+                  command: command.trim(),
+                  required: true,
+                },
+              ]
+            : []),
+          ...(humanCheck.trim()
+            ? [
+                {
+                  id: "human",
+                  statement: humanCheck.trim(),
+                  kind: "human" as const,
+                  required: true,
+                },
+              ]
+            : []),
+        ],
+        ...(workingDirectory.trim() ? { workingDirectory: workingDirectory.trim() } : {}),
       });
       toast.success("Started");
       setOpen(false);
@@ -301,6 +330,56 @@ function NewObjectiveDialog({ org, project }: { org: string; project: Project })
                       label: member.role === "lead" ? `${member.name} (lead)` : member.name,
                     })),
                   ]}
+                />
+              )}
+            </Field>
+
+            {/* The part that decides whether "until it is clean" can ever be
+                answered by anything other than the agent's own opinion. */}
+            <Field
+              label="Command that proves it"
+              optional
+              hint="Run by the system, not by the agent. It passes when the command exits zero."
+            >
+              {(props) => (
+                <Input
+                  {...props}
+                  value={command}
+                  maxLength={500}
+                  placeholder="pnpm test"
+                  onChange={(event) => setCommand(event.target.value)}
+                  className="machine"
+                />
+              )}
+            </Field>
+
+            {command.trim() ? (
+              <Field label="Run it in" hint="An absolute path on the machine running your agents.">
+                {(props) => (
+                  <Input
+                    {...props}
+                    value={workingDirectory}
+                    maxLength={500}
+                    placeholder="/Users/you/code/project"
+                    onChange={(event) => setWorkingDirectory(event.target.value)}
+                    className="machine"
+                  />
+                )}
+              </Field>
+            ) : null}
+
+            <Field
+              label="Something only you can judge"
+              optional
+              hint="The objective waits for you to confirm this. Good for anything about how it looks or feels."
+            >
+              {(props) => (
+                <Input
+                  {...props}
+                  value={humanCheck}
+                  maxLength={500}
+                  placeholder="The checkout flow looks and feels right"
+                  onChange={(event) => setHumanCheck(event.target.value)}
                 />
               )}
             </Field>

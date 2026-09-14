@@ -483,6 +483,109 @@ describe.skipIf(!reachable)("tasks API", () => {
       expect(resumed.status).toBe("active");
     });
 
+    it("does not finish just because the agent says so", async () => {
+      // The whole point of the verification path. An agent reporting its own
+      // work complete is a claim; the objective ends only when something that
+      // is not the agent has established the facts.
+      const { createObjectiveRepository } = await import("@agentco/core");
+      const { createDatabase } = await import("@agentco/db");
+      const connection = createDatabase(TEST_DATABASE_URL, 2);
+      const repo = createObjectiveRepository(connection.db);
+
+      const created = (await objective({})).json();
+      const orgRow = (
+        await app.inject({ method: "GET", url: `/organizations/${org}` })
+      ).json();
+
+      // Something is still open under it.
+      await app.inject({
+        method: "POST",
+        url: `/organizations/${org}/projects/${project}/tasks`,
+        payload: { title: "Still going", assigneeAgentId: agentIds["Sam"] },
+      });
+      const open = (
+        await app.inject({
+          method: "GET",
+          url: `/organizations/${org}/projects/${project}/tasks`,
+        })
+      ).json().data[0];
+      await connection.db.execute(
+        // Tag it to the objective the way an agent's own filing would.
+        `update agc_tasks set objective_id = '${created.id}' where id = '${open.id}'`,
+      );
+
+      const asked = await repo.requestSatisfaction(orgRow.id, created.id, "All done.");
+      expect(asked.accepted).toBe(true);
+
+      // Asking is not finishing.
+      expect((await repo.get(orgRow.id, created.id)).status).toBe("active");
+
+      const settled = await repo.settleSatisfaction(orgRow.id, created.id, []);
+      expect(settled.satisfied).toBe(false);
+      expect(settled.refusal).toContain("still open");
+      expect((await repo.get(orgRow.id, created.id)).status).toBe("active");
+
+      await connection.close();
+    });
+
+    it("finishes once the facts actually hold", async () => {
+      const { createObjectiveRepository } = await import("@agentco/core");
+      const { createDatabase } = await import("@agentco/db");
+      const connection = createDatabase(TEST_DATABASE_URL, 2);
+      const repo = createObjectiveRepository(connection.db);
+
+      const created = (await objective({})).json();
+      const orgRow = (await app.inject({ method: "GET", url: `/organizations/${org}` })).json();
+
+      await repo.requestSatisfaction(orgRow.id, created.id, "Nothing left to do.");
+      const settled = await repo.settleSatisfaction(orgRow.id, created.id, []);
+
+      expect(settled.satisfied).toBe(true);
+      const after = await repo.get(orgRow.id, created.id);
+      expect(after.status).toBe("satisfied");
+      expect(after.reportTaskId).toBeTruthy();
+      await connection.close();
+    });
+
+    it("waits for a person on a check only a person can settle", async () => {
+      const { createObjectiveRepository } = await import("@agentco/core");
+      const { createDatabase } = await import("@agentco/db");
+      const connection = createDatabase(TEST_DATABASE_URL, 2);
+      const repo = createObjectiveRepository(connection.db);
+
+      const created = (
+        await objective({
+          checks: [
+            {
+              id: "looks-right",
+              statement: "The checkout flow looks and feels right",
+              kind: "human",
+              required: true,
+            },
+          ],
+        })
+      ).json();
+      const orgRow = (await app.inject({ method: "GET", url: `/organizations/${org}` })).json();
+
+      await repo.requestSatisfaction(orgRow.id, created.id, "Done as far as I can tell.");
+      const first = await repo.settleSatisfaction(orgRow.id, created.id, []);
+      expect(first.satisfied).toBe(false);
+      expect(first.refusal).toContain("looks and feels right");
+
+      // A person says yes.
+      const ticked = await app.inject({
+        method: "POST",
+        url: `/organizations/${org}/objectives/${created.id}/checks/looks-right`,
+        payload: { passed: true, note: "Looked at it, happy." },
+      });
+      expect(ticked.statusCode).toBe(200);
+
+      await repo.requestSatisfaction(orgRow.id, created.id, "Done.");
+      const second = await repo.settleSatisfaction(orgRow.id, created.id, []);
+      expect(second.satisfied).toBe(true);
+      await connection.close();
+    });
+
     it("counts the work filed under it", async () => {
       const created = (await objective({})).json();
       expect(created.taskCount).toBe(0);

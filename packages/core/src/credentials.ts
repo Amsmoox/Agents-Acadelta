@@ -28,6 +28,7 @@ export type RunIdentity = {
   agentId: string;
   responsibleUserId: string;
   currentTaskId: string | null;
+  projectId: string | null;
   crossTaskWriteLimit: number;
   crossTaskWriteCount: number;
 };
@@ -73,10 +74,13 @@ export function createCredentialRepository(db: Database) {
         .where(eq(runCredentials.runId, runId));
     },
 
-    async setCurrentTask(runId: string, taskId: string | null): Promise<void> {
+    async setContext(
+      runId: string,
+      context: { taskId: string | null; projectId: string | null },
+    ): Promise<void> {
       await db
         .update(runCredentials)
-        .set({ currentTaskId: taskId })
+        .set({ currentTaskId: context.taskId, projectId: context.projectId })
         .where(eq(runCredentials.runId, runId));
     },
 
@@ -114,6 +118,7 @@ export function createCredentialRepository(db: Database) {
         agentId: cred.agentId,
         responsibleUserId: cred.responsibleUserId,
         currentTaskId: cred.currentTaskId,
+        projectId: cred.projectId,
         crossTaskWriteLimit: cred.crossTaskWriteLimit,
         crossTaskWriteCount: cred.crossTaskWriteCount,
       };

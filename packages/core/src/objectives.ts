@@ -12,7 +12,13 @@ import {
   type Database,
   type ObjectiveRow,
 } from "@agentco/db";
-import { AppError, type CreateObjectiveInput, type Objective } from "@agentco/shared";
+import {
+  AppError,
+  type CreateObjectiveInput,
+  type Objective,
+  type ObjectiveCheckResult,
+} from "@agentco/shared";
+import { checksFor, weigh } from "./verification.js";
 import { createTaskRepository } from "./tasks.js";
 
 /**
@@ -54,6 +60,9 @@ function toObjective(
     idleCycles: row.idleCycles,
     outcome: row.outcome,
     reportTaskId: row.reportTaskId,
+    checks: checksFor(row.checks),
+    checkResults: (row.checkResults ?? []) as ObjectiveCheckResult[],
+    verifying: row.satisfactionRequestedAt !== null,
     taskCount: extra.taskCount,
     openTaskCount: extra.openTaskCount,
     createdAt: row.createdAt.toISOString(),
@@ -108,6 +117,8 @@ export function createObjectiveRepository(db: Database) {
             maxCycles: input.maxCycles,
             budgetCents: input.budgetCents,
             maxIdleCycles: input.maxIdleCycles,
+            checks: input.checks,
+            ...(input.workingDirectory ? { workingDirectory: input.workingDirectory } : {}),
             createdByUserId: userId,
           })
           .returning();
@@ -243,11 +254,18 @@ export function createObjectiveRepository(db: Database) {
      * gate than evidence against stated criteria would be, and it is still not
      * the model marking its own homework.
      */
-    async declareSatisfied(
+    /**
+     * The owning agent asking to finish.
+     *
+     * Recorded as a request, never acted on here. Something that is not the
+     * agent has to run the checks first — that gap is the entire difference
+     * between declaring the work done and it being done.
+     */
+    async requestSatisfaction(
       organizationId: string,
       objectiveId: string,
       summary: string,
-    ): Promise<{ accepted: boolean; reason?: string }> {
+    ): Promise<{ accepted: boolean; reason: string }> {
       const [row] = await db
         .select()
         .from(objectives)
@@ -256,16 +274,118 @@ export function createObjectiveRepository(db: Database) {
       if (!row) throw new AppError("OBJECTIVE_NOT_FOUND", { id: objectiveId });
       if (row.status !== "active") throw new AppError("OBJECTIVE_NOT_ACTIVE", { status: row.status });
 
-      const { openTaskCount } = await counts(objectiveId);
-      if (openTaskCount > 0) {
-        return {
-          accepted: false,
-          reason: `${openTaskCount} task${openTaskCount === 1 ? " is" : "s are"} still open under this objective. Finish or cancel them first.`,
-        };
-      }
+      await db
+        .update(objectives)
+        .set({ satisfactionRequestedAt: new Date(), satisfactionSummary: summary })
+        .where(eq(objectives.id, objectiveId));
 
-      await this.end(organizationId, objectiveId, { status: "satisfied", outcome: summary });
-      return { accepted: true };
+      return {
+        accepted: true,
+        reason: "Recorded. The checks will run and the objective ends only if they pass.",
+      };
+    },
+
+    /**
+     * Settles an outstanding request against results the system produced.
+     *
+     * Command results come from whatever was able to run them; the open-task
+     * count is read here, now, rather than taken from anybody's summary.
+     */
+    async settleSatisfaction(
+      organizationId: string,
+      objectiveId: string,
+      commandResults: ObjectiveCheckResult[],
+    ): Promise<{ satisfied: boolean; refusal: string }> {
+      const [row] = await db
+        .select()
+        .from(objectives)
+        .where(and(eq(objectives.organizationId, organizationId), eq(objectives.id, objectiveId)))
+        .limit(1);
+      if (!row) throw new AppError("OBJECTIVE_NOT_FOUND", { id: objectiveId });
+
+      const checks = checksFor(row.checks);
+      const { openTaskCount } = await counts(objectiveId);
+      const now = new Date().toISOString();
+
+      const results: ObjectiveCheckResult[] = checks.map((check) => {
+        if (check.kind === "no_open_tasks") {
+          return {
+            id: check.id,
+            passed: openTaskCount === 0,
+            observed:
+              openTaskCount === 0
+                ? "nothing open"
+                : `${openTaskCount} task${openTaskCount === 1 ? "" : "s"} still open`,
+            checkedAt: now,
+          };
+        }
+        const ran = commandResults.find((result) => result.id === check.id);
+        if (ran) return ran;
+
+        // Kept from last time rather than reset, so a human tick survives a
+        // later automated run.
+        const previous = ((row.checkResults ?? []) as ObjectiveCheckResult[]).find(
+          (result) => result.id === check.id,
+        );
+        return previous ?? { id: check.id, passed: false, observed: "", checkedAt: null };
+      });
+
+      const outcome = weigh(checks, results);
+
+      await db
+        .update(objectives)
+        .set({
+          checkResults: results as unknown as Record<string, unknown>[],
+          satisfactionRequestedAt: null,
+        })
+        .where(eq(objectives.id, objectiveId));
+
+      if (outcome.satisfied) {
+        await this.end(organizationId, objectiveId, {
+          status: "satisfied",
+          outcome: row.satisfactionSummary || "Every check passed.",
+        });
+      }
+      return { satisfied: outcome.satisfied, refusal: outcome.refusal };
+    },
+
+    /** A person settling a check only a person can settle. */
+    async recordHumanCheck(
+      organizationId: string,
+      objectiveId: string,
+      checkId: string,
+      passed: boolean,
+      note: string,
+    ): Promise<Objective> {
+      const [row] = await db
+        .select()
+        .from(objectives)
+        .where(and(eq(objectives.organizationId, organizationId), eq(objectives.id, objectiveId)))
+        .limit(1);
+      if (!row) throw new AppError("OBJECTIVE_NOT_FOUND", { id: objectiveId });
+
+      const existing = ((row.checkResults ?? []) as ObjectiveCheckResult[]).filter(
+        (result) => result.id !== checkId,
+      );
+      const results = [
+        ...existing,
+        { id: checkId, passed, observed: note, checkedAt: new Date().toISOString() },
+      ];
+
+      await db
+        .update(objectives)
+        .set({ checkResults: results as unknown as Record<string, unknown>[] })
+        .where(eq(objectives.id, objectiveId));
+
+      return this.get(organizationId, objectiveId);
+    },
+
+    /** Objectives whose owner has asked to finish and whose checks have not run. */
+    async awaitingVerification(): Promise<ObjectiveRow[]> {
+      return db
+        .select()
+        .from(objectives)
+        .where(and(eq(objectives.status, "active"), sql`satisfaction_requested_at is not null`));
     },
 
     async end(

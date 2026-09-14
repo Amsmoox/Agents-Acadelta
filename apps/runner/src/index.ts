@@ -22,6 +22,7 @@ import {
 } from "@agentco/core";
 import { buildToolManifest, writeShim } from "@agentco/sandbox";
 import { buildWorkPrompt } from "./work-context.js";
+import { verifyObjectives } from "./verify-objectives.js";
 import { loadEnv } from "./env.js";
 import { createLogger } from "./logger.js";
 import { superviseRun } from "./supervisor.js";
@@ -84,9 +85,10 @@ async function executeRun(claim: ClaimedRun): Promise<void> {
     // with none, which is a normal outcome rather than an error.
     const claimedTask = await taskRepo.claimNextFor(claim.agentId, claim.runId);
 
+
     // A run by an agent carrying a standing order is one cycle of it, whether
-    // or not it happened to pick up a task. Counted before the work, so a run
-    // that crashes still spends the cycle it started.
+    // or not it picked up a task. Counted before the work, so a run that
+    // crashes still spends the cycle it started.
     const objective = await objectiveRepo.activeFor(claim.agentId);
     if (objective) await objectiveRepo.beginCycle(objective.id);
 
@@ -97,7 +99,13 @@ async function executeRun(claim: ClaimedRun): Promise<void> {
       responsibleUserId: claimedTask?.responsibleUserId ?? "owner",
       expiresAt: new Date(Date.now() + LEASE_SECONDS * 4000),
     });
-    await credentials.setCurrentTask(claim.runId, claimedTask?.id ?? null);
+    // The project comes from the task when there is one and from the standing
+    // objective when there is not, so an agent woken to carry an objective can
+    // still see its team and its board — which is the run where it needs them.
+    await credentials.setContext(claim.runId, {
+      taskId: claimedTask?.id ?? null,
+      projectId: claimedTask?.projectId ?? objective?.projectId ?? null,
+    });
 
     const work = await buildWorkPrompt(database.db, {
       organizationId: claim.organizationId,
@@ -251,6 +259,11 @@ async function tick(): Promise<void> {
   // active-run slot, and nothing new can start until it is released.
   const reaped = await dispatch.reapStale(STALE_AFTER_SECONDS);
   if (reaped.length > 0) log.warn({ count: reaped.length }, "reaped runs with no live runner");
+
+  // An objective whose owner has asked to finish is tested here rather than
+  // taken at its word. This is the only place in the system that can run a
+  // command, and it has no stake in the answer.
+  await verifyObjectives(database.db, log);
 
   // Keep claiming while there is work and capacity. One claim per tick meant
   // four agents woken at the same moment started one poll interval apart, so a

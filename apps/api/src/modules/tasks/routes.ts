@@ -226,6 +226,30 @@ export async function registerTaskRoutes(instance: FastifyInstance) {
     async (request) => objectives.get(await orgId(request.params.orgRef), request.params.id),
   );
 
+  /**
+   * A person settling a check only a person can settle.
+   *
+   * The objective does not finish here — the next verification weighs this
+   * alongside everything else, so one tick cannot skip the rest.
+   */
+  app.post(
+    "/organizations/:orgRef/objectives/:id/checks/:checkId",
+    {
+      schema: {
+        params: orgParams.extend({ id: z.uuid(), checkId: z.string().min(1).max(64) }),
+        body: z.object({ passed: z.boolean(), note: z.string().trim().max(2000).default("") }),
+      },
+    },
+    async (request) =>
+      objectives.recordHumanCheck(
+        await activeOrgId(request.params.orgRef),
+        request.params.id,
+        request.params.checkId,
+        request.body.passed,
+        request.body.note,
+      ),
+  );
+
   app.post(
     "/organizations/:orgRef/objectives/:id/stop",
     { schema: { params: orgParams.extend({ id: z.uuid() }) } },

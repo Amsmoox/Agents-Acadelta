@@ -74,6 +74,19 @@ export async function registerAgentApiRoutes(instance: FastifyInstance) {
    * that the row exists, which is the one thing a caller outside the tenant
    * should not be able to learn.
    */
+  /**
+   * The project this run is working in.
+   *
+   * From the credential rather than derived from a task, because a run carrying
+   * a standing objective has no task and still has a project — and without one
+   * it could see neither its team nor its board.
+   */
+  function projectOf(request: FastifyRequest): string {
+    const id = identity(request);
+    if (!id.projectId) throw new AppError("PROJECT_NOT_FOUND", { reason: "this run has no project" });
+    return id.projectId;
+  }
+
   async function target(request: FastifyRequest, ref: string, write: boolean) {
     const id = identity(request);
     const row = await repo.requireRow(id.organizationId, ref).catch(() => null);
@@ -83,12 +96,7 @@ export async function registerAgentApiRoutes(instance: FastifyInstance) {
     // into another one's board is not something any legitimate command needs —
     // so it answers as though the task does not exist, which for this run it
     // does not. 404 rather than 403, because 403 confirms the row is there.
-    const current = id.currentTaskId
-      ? await repo.requireRow(id.organizationId, id.currentTaskId).catch(() => null)
-      : null;
-    if (!current || current.projectId !== row.projectId) {
-      throw new AppError("TASK_NOT_FOUND", { ref });
-    }
+    if (id.projectId !== row.projectId) throw new AppError("TASK_NOT_FOUND", { ref });
 
     if (write) await credentials.chargeCrossTaskWrite(id.runId, row.id);
     return { id, row };
@@ -119,10 +127,7 @@ export async function registerAgentApiRoutes(instance: FastifyInstance) {
   /** Who else is on this project, and what they are for. */
   app.get("/agent/team", async (request) => {
     const id = identity(request);
-    const task = id.currentTaskId
-      ? await repo.requireRow(id.organizationId, id.currentTaskId).catch(() => null)
-      : null;
-    if (!task) return { data: [] };
+    const projectId = projectOf(request);
 
     const rows = await instance.db
       .select({
@@ -139,7 +144,7 @@ export async function registerAgentApiRoutes(instance: FastifyInstance) {
       .where(
         and(
           eq(projectMembers.organizationId, id.organizationId),
-          eq(projectMembers.projectId, task.projectId),
+          eq(projectMembers.projectId, projectId),
         ),
       );
 
@@ -164,12 +169,7 @@ export async function registerAgentApiRoutes(instance: FastifyInstance) {
     },
     async (request) => {
       const id = identity(request);
-      const current = id.currentTaskId
-        ? await repo.requireRow(id.organizationId, id.currentTaskId).catch(() => null)
-        : null;
-      if (!current) return { data: [] };
-
-      const all = await repo.list(id.organizationId, current.projectId, {
+      const all = await repo.list(id.organizationId, projectOf(request), {
         limit: request.query.limit,
         ...(request.query.status ? { status: request.query.status } : {}),
         ...(request.query.mine ? { assigneeAgentId: id.agentId } : {}),
@@ -198,22 +198,29 @@ export async function registerAgentApiRoutes(instance: FastifyInstance) {
       const current = id.currentTaskId
         ? await repo.requireRow(id.organizationId, id.currentTaskId).catch(() => null)
         : null;
-      if (!current) throw new AppError("TASK_NOT_FOUND", { reason: "no current task" });
 
       await credentials.chargeCrossTaskWrite(id.runId, null);
 
+      // An objective owner with no task of its own still files work under the
+      // objective it carries, so the tag comes from whichever it has.
+      const objective = current?.objectiveId
+        ? { id: current.objectiveId }
+        : await objectives.activeFor(id.agentId);
+
       const task = await repo.createSafely(
         id.organizationId,
-        current.projectId,
+        projectOf(request),
         {
           ...request.body,
           status: "todo",
           // Defaults to the task being worked, so delegation builds a tree
           // rather than a pile nobody can trace.
-          parentId: request.body.parentId ?? current.id,
+          ...(request.body.parentId ?? current?.id
+            ? { parentId: request.body.parentId ?? current!.id }
+            : {}),
         },
         actor,
-        { objectiveId: current.objectiveId },
+        { objectiveId: objective?.id ?? null },
       );
 
       if (task.assigneeAgentId) {
@@ -356,30 +363,27 @@ export async function registerAgentApiRoutes(instance: FastifyInstance) {
   app.post(
     "/agent/objective/finish",
     { schema: { body: z.object({ summary: z.string().trim().max(20_000).default("") }) } },
-    async (request, reply) => {
+    async (request) => {
       const id = identity(request);
       const row = await objectives.activeFor(id.agentId);
       if (!row) throw new AppError("OBJECTIVE_NOT_FOUND", { reason: "you carry no objective" });
 
-      const result = await objectives.declareSatisfied(
+      const result = await objectives.requestSatisfaction(
         id.organizationId,
         row.id,
         request.body.summary || "The owning agent reported the work complete.",
       );
-      if (!result.accepted) {
-        return reply.status(409).send({ ok: false, error: result.reason });
-      }
-      return { finished: true };
+      // Not finished — requested. The checks run elsewhere, and the objective
+      // ends only if they pass. Saying so plainly stops the agent assuming it
+      // is done and stopping work that may still be needed.
+      return { requested: true, message: result.reason };
     },
   );
 
   /** The project's brief: what this is, who it is for, what good looks like. */
   app.get("/agent/project", async (request) => {
     const id = identity(request);
-    const current = id.currentTaskId
-      ? await repo.requireRow(id.organizationId, id.currentTaskId).catch(() => null)
-      : null;
-    if (!current) return null;
+    const projectId = projectOf(request);
 
     const [project] = await instance.db
       .select({
@@ -389,17 +393,14 @@ export async function registerAgentApiRoutes(instance: FastifyInstance) {
         taskPrefix: projects.taskPrefix,
       })
       .from(projects)
-      .where(eq(projects.id, current.projectId))
+      .where(eq(projects.id, projectId))
       .limit(1);
 
     const open = await instance.db
       .select({ key: tasks.key, title: tasks.title, status: tasks.status })
       .from(tasks)
       .where(
-        and(
-          eq(tasks.projectId, current.projectId),
-          eq(tasks.organizationId, id.organizationId),
-        ),
+        and(eq(tasks.projectId, projectId), eq(tasks.organizationId, id.organizationId)),
       )
       .limit(100);
 

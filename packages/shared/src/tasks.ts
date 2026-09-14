@@ -161,6 +161,42 @@ export const listTasksQuerySchema = z.object({
   cursor: z.string().optional(),
 });
 
+/**
+ * How the system decides an objective is finished.
+ *
+ * Three kinds, and the split between them is the whole point. `no_open_tasks`
+ * and `command` are facts the system establishes for itself; `human` is a
+ * judgment only a person can make. None of them is the owning agent's opinion,
+ * because an agent reporting that its own work is complete is a claim, and a
+ * claim is what this exists to replace.
+ */
+export const OBJECTIVE_CHECK_KINDS = ["no_open_tasks", "command", "human"] as const;
+export type ObjectiveCheckKind = (typeof OBJECTIVE_CHECK_KINDS)[number];
+
+export const objectiveCheckSchema = z.object({
+  id: z.string().min(1).max(64),
+  /** What this proves, in the words of whoever set it. */
+  statement: z.string().trim().min(1).max(500),
+  kind: z.enum(OBJECTIVE_CHECK_KINDS),
+  /**
+   * For `command`: run by the system in the project's working directory, and
+   * passing means exit code zero. Never run by the agent and reported back —
+   * that would be the agent's word again, with extra steps.
+   */
+  command: z.string().trim().max(500).optional(),
+  required: z.boolean().default(true),
+});
+
+export type ObjectiveCheck = z.infer<typeof objectiveCheckSchema>;
+
+export type ObjectiveCheckResult = {
+  id: string;
+  passed: boolean;
+  /** What was actually observed. Empty when the check has not been run yet. */
+  observed: string;
+  checkedAt: string | null;
+};
+
 export const createObjectiveSchema = z.object({
   title: z.string().trim().min(1).max(200),
   directive: z.string().trim().min(1).max(20_000),
@@ -169,6 +205,14 @@ export const createObjectiveSchema = z.object({
   maxCycles: z.coerce.number().int().min(1).max(100).default(10),
   budgetCents: z.coerce.number().int().min(0).max(1_000_000).default(0),
   maxIdleCycles: z.coerce.number().int().min(1).max(10).default(2),
+  /**
+   * Left empty, the objective still gets one check: that nothing it opened is
+   * still open. That is weak on its own, and the form says so — but an
+   * objective with no way to end is worse than one with a shallow way.
+   */
+  checks: z.array(objectiveCheckSchema).max(20).default([]),
+  /** Where a `command` check runs. Required if any check is a command. */
+  workingDirectory: z.string().trim().max(500).optional(),
 });
 
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
@@ -240,6 +284,10 @@ export type Objective = {
   idleCycles: number;
   outcome: string | null;
   reportTaskId: string | null;
+  checks: ObjectiveCheck[];
+  checkResults: ObjectiveCheckResult[];
+  /** Set when the owning agent has asked to finish and the checks have not run yet. */
+  verifying: boolean;
   taskCount: number;
   openTaskCount: number;
   createdAt: string;

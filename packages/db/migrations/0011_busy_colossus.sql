@@ -1,0 +1,1 @@
+ALTER TABLE "agc_run_credentials" ADD COLUMN "project_id" uuid;

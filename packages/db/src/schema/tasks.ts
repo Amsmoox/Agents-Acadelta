@@ -302,6 +302,15 @@ export const runCredentials = pgTable(
     crossTaskWriteCount: integer("cross_task_write_count").notNull().default(0),
     /** The task the run claimed, if it claimed one. */
     currentTaskId: uuid("current_task_id"),
+    /**
+     * Which project this run is working in.
+     *
+     * Separate from the task on purpose: an agent woken to carry a standing
+     * objective has no task yet, and anchoring everything on one left it unable
+     * to see its own team or project — so it had nobody to delegate to on the
+     * very run where delegating is the whole job.
+     */
+    projectId: uuid("project_id"),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -357,6 +366,24 @@ export const objectives = pgTable(
     /** Cycles that produced no new task and no new comment. */
     maxIdleCycles: integer("max_idle_cycles").notNull().default(2),
     idleCycles: integer("idle_cycles").notNull().default(0),
+
+    /**
+     * What has to be true for this to be finished, and what was found when the
+     * system last checked. Results are written by whatever ran the check, never
+     * by the agent that wanted it to pass.
+     */
+    checks: jsonb("checks").$type<Record<string, unknown>[]>().notNull().default([]),
+    checkResults: jsonb("check_results").$type<Record<string, unknown>[]>().notNull().default([]),
+    /** Where a command check runs. */
+    workingDirectory: text("working_directory"),
+    /**
+     * The owning agent has asked to finish and the checks have not been run yet.
+     *
+     * A request, held here until something that is not the agent gets round to
+     * testing it — which is the whole difference between declaring and proving.
+     */
+    satisfactionRequestedAt: timestamp("satisfaction_requested_at", { withTimezone: true }),
+    satisfactionSummary: text("satisfaction_summary"),
 
     outcome: text("outcome"),
     reportTaskId: uuid("report_task_id"),
